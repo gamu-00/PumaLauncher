@@ -1,6 +1,10 @@
 package com.openlauncher.app.ui.widget
 
+import android.content.Intent
 import android.media.MediaMetadata
+import android.media.session.PlaybackState
+import android.os.SystemClock
+import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -8,16 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Radio
@@ -29,17 +31,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.service.MediaListenerService
 import kotlin.math.abs
@@ -70,17 +75,9 @@ fun NowPlayingWidget(
     onRadioTune: (band: String, freq: Float) -> Unit = { _, _ -> },
     onAssignRadio: () -> Unit = {}
 ) {
-    val context     = LocalContext.current
-    val isConnected by MediaListenerService.isConnected.collectAsState()
-    val hasCarPlay  = carPlayPackage.isNotEmpty()
-    val hasAutoApp  = androidAutoPackage.isNotEmpty()
-    val hasContent  = state != null && state.title.isNotEmpty()
-
     var selectedSource by rememberSaveable { mutableStateOf("Any Player") }
 
     // Auto-switch to radio view when hardware radio is detected.
-    // Keyed on presence (not the state object) so freq/RDS updates don't
-    // keep forcing the radio view after the user picks "Any Player".
     val hasHardwareRadio = hardwareRadio != null
     LaunchedEffect(hasHardwareRadio) {
         if (hasHardwareRadio) selectedSource = "FM/AM Radio"
@@ -94,7 +91,6 @@ fun NowPlayingWidget(
     ) {
         // 1. CONDITIONAL VIEW TOGGLE
         if (selectedSource == "FM/AM Radio") {
-            // Real-tuner radio deck — mirrors the MCU or the radio app's session
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -116,22 +112,16 @@ fun NowPlayingWidget(
                 )
             }
         } else {
-            // Standard Elegant Modern Media Player
             StandardMinimalPlayer(
                 state = state,
                 accent = accent,
-                hasContent = hasContent,
                 isEditing = isEditing,
                 isDayMode = isDayMode,
-                isConnected = isConnected,
-                hasCarPlay = hasCarPlay,
-                hasAutoApp = hasAutoApp,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onPrev = onPrev,
-                onLaunchCarPlay = onLaunchCarPlay,
-                onLaunchAndroidAuto = onLaunchAndroidAuto,
                 onTapToOpenApp = onTapToOpenApp,
+                onLaunchMusicApp = onLaunchCarPlay,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -139,7 +129,7 @@ fun NowPlayingWidget(
         // 2. FLOATING MULTI-SOURCE SELECTOR (Top-Right, always overlayed)
         var menuExpanded by remember { mutableStateOf(false) }
         val selectorIconColor = if (isDayMode) Color.Black.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-        
+
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -184,13 +174,6 @@ fun NowPlayingWidget(
     }
 }
 
-
-/**
- * Radio deck backed by a REAL tuner only — either the vendor MCU (full control,
- * canTune = true) or the radio app's MediaSession (seek/open/stop, read-only
- * band). No simulated static, no demo stations: when no source exists the deck
- * says so and offers to assign the unit's radio app.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RadioDeck(
@@ -212,7 +195,6 @@ private fun RadioDeck(
     val borderColor  = if (isDayMode) Color(0xFF777777) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
 
     if (hardwareRadio == null) {
-        // No real tuner detected — be honest about it instead of simulating one
         Column(
             modifier = modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -228,7 +210,7 @@ private fun RadioDeck(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                "Start your head unit's radio app — or assign it below so Open Launcher can mirror and control it",
+                "Start your head unit's radio app - or assign it below so Open Launcher can mirror and control it",
                 color = dimColor, fontSize = 7.sp, fontFamily = FontFamily.Monospace,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 lineHeight = 10.sp,
@@ -254,8 +236,6 @@ private fun RadioDeck(
         return
     }
 
-    // Power is a local veil over the live source: stopping doesn't always clear
-    // the vendor state, so a fresh emission flips it back on (radio re-engaged)
     var isManuallyOff by remember { mutableStateOf(false) }
     LaunchedEffect(hardwareRadio) {
         if (isManuallyOff) isManuallyOff = false
@@ -278,7 +258,6 @@ private fun RadioDeck(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // ── Row 1: band (chips when switchable, read-only chip otherwise) + power
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,7 +287,6 @@ private fun RadioDeck(
                     }
                 }
             } else {
-                // Session-mirrored tuner: band is whatever the radio app reports
                 Box(
                     modifier = Modifier
                         .height(22.dp)
@@ -347,7 +325,6 @@ private fun RadioDeck(
             }
         }
 
-        // ── Row 2: live frequency + station/RDS line ──────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -376,7 +353,6 @@ private fun RadioDeck(
             }
         }
 
-        // ── Row 3: seek + open ────────────────────────────────────────────────
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             RadioFlatButton(
                 label = "◄ SEEK", enabled = powerOn, active = false,
@@ -398,7 +374,6 @@ private fun RadioDeck(
             )
         }
 
-        // ── Presets: only when the backend supports direct frequency tuning ──
         if (hardwareRadio.canTune) {
             var fmPresets by rememberSaveable { mutableStateOf(listOf(88.5f, 91.5f, 98.1f, 101.9f, 104.3f, 107.5f)) }
             var amPresets by rememberSaveable { mutableStateOf(listOf(540f, 680f, 820f, 1040f, 1260f, 1420f)) }
@@ -447,7 +422,6 @@ private fun RadioDeck(
                                 enabled = powerOn,
                                 onClick = { onRadioTune(displayBand, presetFreq) },
                                 onLongClick = {
-                                    // Store the REAL current frequency on this preset
                                     freqFloat?.let { f ->
                                         if (isFm) fmPresets = fmPresets.toMutableList().also { it[pIdx] = f }
                                         else      amPresets = amPresets.toMutableList().also { it[pIdx] = f }
@@ -511,218 +485,313 @@ private fun RadioFlatButton(
 }
 
 @Composable
-private fun StandardMinimalPlayer(
+fun StandardMinimalPlayer(
     state: NowPlayingState?,
     accent: Color,
-    hasContent: Boolean,
-    isEditing: Boolean,
     isDayMode: Boolean,
-    isConnected: Boolean,
-    hasCarPlay: Boolean,
-    hasAutoApp: Boolean,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
-    onLaunchCarPlay: () -> Unit,
-    onLaunchAndroidAuto: () -> Unit,
     onTapToOpenApp: () -> Unit,
-    modifier: Modifier = Modifier
+    onLaunchMusicApp: () -> Unit,
+    modifier: Modifier = Modifier,
+    isEditing: Boolean = false
 ) {
     val context = LocalContext.current
-    
-    // UI Theme colors
-    val idleIconColor = if (isDayMode) Color(0xFF555555) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.30f)
-    val idleTextColor = if (isDayMode) Color(0xFF555555) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.30f)
-    val contentTextColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-    val subTextColor = if (isDayMode) Color(0xFF666666) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.30f)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var permissionCheckTrigger by remember { mutableIntStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permissionCheckTrigger++
+                MediaListenerService.requestRefresh(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(context) {
+        MediaListenerService.requestRefresh(context)
+    }
+
+    val isNotificationAccessGranted = remember(permissionCheckTrigger, context) {
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    }
+
+    val hasContent = state != null && state.title.isNotEmpty()
+    val ringColor = accent
+    val onAccentColor = if (ringColor.luminance() > 0.5f) Color.Black else Color.White
+    val textPrimary = Color(0xFFF2F4F7)
+    val textSecondary = Color(0xFF9AA3B2)
+    val trackColor = Color(0xFF272C35)
 
     Box(modifier = modifier) {
-        if (!hasContent) {
+        if (!isNotificationAccessGranted) {
+            // Permesso notifiche NON attivo: avviso chiaro e cliccabile che apre ACTION_NOTIFICATION_LISTENER_SETTINGS
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1B1F26))
+                    .border(1.5.dp, ringColor, RoundedCornerShape(12.dp))
+                    .let {
+                        if (!isEditing) {
+                            it.clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                }
+                            }
+                        } else it
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (hasCarPlay || hasAutoApp) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape)
+                            .background(ringColor)
                     ) {
-                        if (hasCarPlay) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .let { if (!isEditing) it.clickable { onLaunchCarPlay() } else it }
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(Icons.Default.PhoneAndroid, null, tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
-                                    Text("CARPLAY", color = accent.copy(alpha = 0.6f), fontSize = 8.sp, letterSpacing = 2.sp)
-                                }
-                            }
-                        }
-                        if (hasCarPlay && hasAutoApp) {
-                            androidx.compose.material3.VerticalDivider(
-                                modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
-                                color = if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF1E1E1E)
-                            )
-                        }
-                        if (hasAutoApp) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .let { if (!isEditing) it.clickable { onLaunchAndroidAuto() } else it }
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(Icons.Default.DirectionsCar, null, tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
-                                    Text("ANDROID AUTO", color = accent.copy(alpha = 0.6f), fontSize = 8.sp, letterSpacing = 2.sp)
-                                }
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Default.NotificationsOff,
+                            contentDescription = "Attiva accesso notifiche",
+                            tint = onAccentColor,
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Attiva accesso notifiche per YouTube Music",
+                            color = textPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Tocca qui per abilitare il controllo multimediale nelle impostazioni",
+                            color = ringColor,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        } else if (!hasContent) {
+            // Permesso attivo e nessun brano in riproduzione: riquadro pulito per avviare YouTube Music
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1B1F26))
+                    .border(1.dp, trackColor, RoundedCornerShape(12.dp))
+                    .let { if (!isEditing) it.clickable { onLaunchMusicApp() } else it },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(ringColor)
                     ) {
-                        Icon(Icons.Default.MusicNote, null, tint = idleIconColor, modifier = Modifier.size(24.dp))
-                        Text("NO MEDIA PLAYING", color = idleTextColor, fontSize = 7.sp, letterSpacing = 1.sp)
+                        Icon(Icons.Default.PlayArrow, null, tint = onAccentColor, modifier = Modifier.size(40.dp))
+                    }
+                    Column {
+                        Text("YouTube Music", color = textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Tocca per avviare", color = textSecondary, fontSize = 14.sp)
                     }
                 }
             }
         } else {
-            // Non-null playing track state
             val nonNullState = state!!
-            var positionMs by remember { mutableLongStateOf(nonNullState.controller?.playbackState?.position ?: 0L) }
-            val durationMs = nonNullState.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+            var durationMs by remember(nonNullState.title, nonNullState.artist) {
+                mutableLongStateOf(
+                    (nonNullState.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L)
+                        .coerceAtLeast(0L)
+                )
+            }
+            var positionMs by remember(nonNullState.title, nonNullState.artist) {
+                mutableLongStateOf(
+                    computeLivePositionMs(nonNullState.controller?.playbackState, durationMs)
+                )
+            }
 
-            LaunchedEffect(nonNullState.isPlaying, nonNullState.title) {
+            // Coroutine ticker every 500ms while isPlaying == true to update the circular progress ring in real time
+            LaunchedEffect(nonNullState.isPlaying, nonNullState.title, nonNullState.controller?.sessionToken) {
+                durationMs = (nonNullState.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: durationMs)
+                    .coerceAtLeast(0L)
+                positionMs = computeLivePositionMs(nonNullState.controller?.playbackState, durationMs)
                 while (nonNullState.isPlaying) {
-                    positionMs = nonNullState.controller?.playbackState?.position ?: positionMs
-                    delay(500)
+                    delay(500L)
+                    durationMs = (nonNullState.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: durationMs)
+                        .coerceAtLeast(0L)
+                    positionMs = computeLivePositionMs(nonNullState.controller?.playbackState, durationMs)
                 }
             }
 
-            // Draw Album Art as background with smooth blur overlay if present
-            val hasAlbumArt = nonNullState.albumArt != null
-            val useDarkTheme = hasAlbumArt || !isDayMode
+            val progress = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
 
-            val currentTextColor = if (hasAlbumArt) Color.White else if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-            val currentSubTextColor = if (hasAlbumArt) Color.White.copy(alpha = 0.6f) else if (isDayMode) Color(0xFF666666) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            val currentProgressColor = if (useDarkTheme) accent else if (isDayMode) Color(0xFF111111) else accent
-            val currentProgressTrack = currentTextColor.copy(alpha = 0.15f)
-            val currentIconColor = currentTextColor.copy(alpha = 0.75f)
-            val currentPlayBgColor = if (useDarkTheme) accent.copy(alpha = 0.9f) else if (isDayMode) Color(0xFF111111) else accent.copy(alpha = 0.9f)
-            val currentPlayIconColor = if (useDarkTheme) Color.Black else Color.White
-
-            if (hasAlbumArt) {
-                // Prefer the full-resolution art URI when the source app provides
-                // one — the metadata bitmap is often a downscaled notification
-                // thumbnail that looks soft stretched across the widget. Falls back
-                // to the bitmap if the URI fails to load, and renders with high
-                // filter quality so upscaling stays smooth either way.
-                coil.compose.AsyncImage(
-                    model = nonNullState.artUri ?: nonNullState.albumArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
-                    error = nonNullState.albumArt?.let {
-                        androidx.compose.ui.graphics.painter.BitmapPainter(it.asImageBitmap())
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                // 25% dimming layer overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.25f))
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Track info (top — clickable to open app)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier
-                        .padding(top = 16.dp)
-                        .let { if (!isEditing) it.clickable { onTapToOpenApp() } else it }
+            BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                val ringSize = minOf(maxHeight, maxWidth * 0.42f)
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = nonNullState.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = currentTextColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = nonNullState.artist.ifEmpty { "Unknown" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = currentSubTextColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 11.sp
-                    )
-                }
-
-                // Progress + controls (bottom)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (durationMs > 0) {
-                        LinearProgressIndicator(
-                            progress = { (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(2.dp),
-                            color = currentProgressColor,
-                            trackColor = currentProgressTrack
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(formatMs(positionMs), style = MaterialTheme.typography.labelSmall, color = currentSubTextColor.copy(alpha = 0.75f), fontSize = 9.sp)
-                            Text(formatMs(durationMs), style = MaterialTheme.typography.labelSmall, color = currentSubTextColor.copy(alpha = 0.75f), fontSize = 9.sp)
-                        }
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                    // Album art with circular progress ring in dynamic theme accent color
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(ringSize)
+                            .let { if (!isEditing) it.clickable { onTapToOpenApp() } else it }
                     ) {
-                        IconButton(onClick = { if (!isEditing) onPrev() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.SkipPrevious, "Prev", tint = currentIconColor, modifier = Modifier.size(20.dp))
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val stroke = 6.dp.toPx()
+                            val inset = stroke / 2f
+                            val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+                            drawArc(
+                                color = trackColor, startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                                topLeft = topLeft, size = arcSize,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)
+                            )
+                            drawArc(
+                                color = ringColor, startAngle = -90f, sweepAngle = 360f * progress, useCenter = false,
+                                topLeft = topLeft, size = arcSize,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
                         }
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(42.dp)
+                                .fillMaxSize()
+                                .padding(12.dp)
                                 .clip(CircleShape)
-                                .background(currentPlayBgColor)
+                                .background(Color(0xFF1B1F26))
                         ) {
-                            IconButton(onClick = { if (!isEditing) onPlayPause() }, modifier = Modifier.size(42.dp)) {
-                                Icon(
-                                    imageVector = if (nonNullState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (nonNullState.isPlaying) "Pause" else "Play",
-                                    tint = currentPlayIconColor,
-                                    modifier = Modifier.size(22.dp)
+                            if (nonNullState.albumArt != null) {
+                                val imageBitmap = remember(nonNullState.albumArt) {
+                                    nonNullState.albumArt.asImageBitmap()
+                                }
+                                Image(
+                                    bitmap = imageBitmap,
+                                    contentDescription = nonNullState.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (!nonNullState.artUri.isNullOrEmpty()) {
+                                coil.compose.AsyncImage(
+                                    model = nonNullState.artUri,
+                                    contentDescription = nonNullState.title,
+                                    contentScale = ContentScale.Crop,
+                                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(Icons.Default.MusicNote, null, tint = ringColor, modifier = Modifier.size(40.dp))
+                            }
+                        }
+                    }
+
+                    // Track info + large controls
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(
+                            modifier = Modifier.let { if (!isEditing) it.clickable { onTapToOpenApp() } else it }
+                        ) {
+                            Text(
+                                text = nonNullState.title,
+                                color = textPrimary,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = nonNullState.artist.ifEmpty { "Sconosciuto" },
+                                color = textSecondary,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (durationMs > 0) {
+                                Text(
+                                    text = "${formatMs(positionMs)} / ${formatMs(durationMs)}",
+                                    color = textSecondary.copy(alpha = 0.8f),
+                                    fontSize = 12.sp
                                 )
                             }
                         }
-                        IconButton(onClick = { if (!isEditing) onNext() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.SkipNext, "Next", tint = currentIconColor, modifier = Modifier.size(20.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (!isEditing) {
+                                        onPrev()
+                                        com.openlauncher.app.ui.screen.restoreActiveVideoWindow(context)
+                                    }
+                                },
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(Icons.Default.SkipPrevious, "Prev", tint = textPrimary, modifier = Modifier.size(38.dp))
+                            }
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(68.dp).clip(CircleShape).background(ringColor)
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (!isEditing) {
+                                            onPlayPause()
+                                            com.openlauncher.app.ui.screen.restoreActiveVideoWindow(context)
+                                        }
+                                    },
+                                    modifier = Modifier.size(68.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (nonNullState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (nonNullState.isPlaying) "Pause" else "Play",
+                                        tint = onAccentColor,
+                                        modifier = Modifier.size(42.dp)
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (!isEditing) {
+                                        onNext()
+                                        com.openlauncher.app.ui.screen.restoreActiveVideoWindow(context)
+                                    }
+                                },
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(Icons.Default.SkipNext, "Next", tint = textPrimary, modifier = Modifier.size(38.dp))
+                            }
                         }
                     }
                 }
@@ -731,8 +800,21 @@ private fun StandardMinimalPlayer(
     }
 }
 
+private fun computeLivePositionMs(playbackState: PlaybackState?, durationMs: Long): Long {
+    if (playbackState == null) return 0L
+    val basePos = playbackState.position.coerceAtLeast(0L)
+    val extrapolated = if (playbackState.state == PlaybackState.STATE_PLAYING) {
+        val lastUpdate = playbackState.lastPositionUpdateTime
+        val deltaMs = if (lastUpdate > 0L) (SystemClock.elapsedRealtime() - lastUpdate).coerceAtLeast(0L) else 0L
+        val speed = if (playbackState.playbackSpeed > 0f) playbackState.playbackSpeed else 1f
+        basePos + (deltaMs * speed).toLong()
+    } else {
+        basePos
+    }
+    return if (durationMs > 0L) extrapolated.coerceIn(0L, durationMs) else extrapolated
+}
+
 private fun formatMs(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
 }
-

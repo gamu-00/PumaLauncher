@@ -1,6 +1,32 @@
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.security.KeyFactory
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
+import java.security.spec.PKCS8EncodedKeySpec
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val testkeyPemFile = file("signing/testkey.x509.pem")
+val testkeyPk8File = file("signing/testkey.pk8")
+val testkeyStoreFile = file("signing/testkey.p12")
+
+if (testkeyPemFile.exists() && testkeyPk8File.exists()) {
+    val cert = FileInputStream(testkeyPemFile).use { fis ->
+        CertificateFactory.getInstance("X.509").generateCertificate(fis)
+    }
+    val privateKey = KeyFactory.getInstance("RSA")
+        .generatePrivate(PKCS8EncodedKeySpec(testkeyPk8File.readBytes()))
+    val ks = KeyStore.getInstance("PKCS12").apply {
+        load(null, null)
+        setKeyEntry("testkey", privateKey, "android".toCharArray(), arrayOf(cert))
+    }
+    FileOutputStream(testkeyStoreFile).use { fos ->
+        ks.store(fos, "android".toCharArray())
+    }
 }
 
 android {
@@ -11,15 +37,24 @@ android {
 
     defaultConfig {
         applicationId  = "com.openlauncher.app"
-        minSdk         = 21
-        targetSdk      = 36
+        minSdk         = 29
+        targetSdk      = 33
         versionCode    = 6
         versionName    = "0.0.5"
     }
 
+    signingConfigs {
+        create("testkey") {
+            storeFile     = testkeyStoreFile
+            storePassword = "android"
+            keyAlias      = "testkey"
+            keyPassword   = "android"
+        }
+    }
+
     buildTypes {
         debug {
-            // Default signing config for normal device testing (restores app visibility)
+            signingConfig = signingConfigs.getByName("testkey")
         }
         release {
             isMinifyEnabled = false
@@ -69,6 +104,12 @@ dependencies {
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Media Station: Media3 (ExoPlayer + HLS + UI) and OkHttp (JSON via Gson above)
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
@@ -77,6 +118,10 @@ dependencies {
 
     // JSON serialization
     implementation("com.google.code.gson:gson:2.13.1")
+
+    // MapLibre Native SDK & Location Services
+    implementation("org.maplibre.gl:android-sdk:11.+")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

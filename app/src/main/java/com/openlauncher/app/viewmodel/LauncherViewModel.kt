@@ -17,7 +17,9 @@ import com.openlauncher.app.data.DayNightMode
 import com.openlauncher.app.data.DefaultShortcutIcon
 import com.openlauncher.app.data.GRID_COLS
 import com.openlauncher.app.data.GRID_ROWS
+import com.openlauncher.app.data.RAIL_SLOTS
 import com.openlauncher.app.data.SettingsRepository
+import com.openlauncher.app.data.railPackages
 import com.openlauncher.app.data.ShortcutConfig
 import com.openlauncher.app.data.SoundPadConfig
 import com.openlauncher.app.data.WeatherApi
@@ -62,7 +64,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun navigate(dest: NavDestination) { _nav.value = dest }
 
-    // ── Shortcut picker ───────────────────────────────────────────────────────
+    // ── Shortcut & Rail Pickers ───────────────────────────────────────────────
     private val _shortcutPickerSlot = MutableStateFlow<Int?>(null)
     val shortcutPickerSlot: StateFlow<Int?> = _shortcutPickerSlot
 
@@ -71,16 +73,73 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _nav.value = NavDestination.APP_LIBRARY
     }
 
+    /** Replaces the app shown at Nav Rail position [slot] with [app] (keeps pinned/recent status). */
     fun assignShortcut(slot: Int, app: AppInfo) {
+        val newPkg = app.packageName
         updateSettings {
-            copy(shortcuts = shortcuts.toMutableList().also { list ->
-                while (list.size <= slot) list.add(ShortcutConfig())
-                list[slot] = ShortcutConfig(packageName = app.packageName, label = app.appName)
-            })
+            val old = railPackages().getOrNull(slot)
+            if (old == null) {
+                copy(pinnedApps = (pinnedApps + newPkg).distinct().take(RAIL_SLOTS))
+            } else if (old in pinnedApps) {
+                copy(pinnedApps = pinnedApps.map { if (it == old) newPkg else it }.distinct())
+            } else {
+                copy(recentApps = recentApps.map { if (it == old) newPkg else it }.distinct())
+            }
         }
         _shortcutPickerSlot.value = null
         _nav.value = NavDestination.HOME
     }
+
+    /** Pins the app (max [RAIL_SLOTS] pinned) or unpins it if already pinned. */
+    fun togglePinned(pkg: String) {
+        updateSettings {
+            if (pkg in pinnedApps) copy(pinnedApps = pinnedApps - pkg)
+            else copy(
+                pinnedApps = (pinnedApps + pkg).takeLast(RAIL_SLOTS),
+                recentApps = recentApps - pkg
+            )
+        }
+    }
+
+    /** Hides or unhides [pkg] in the App Drawer. */
+    fun toggleHiddenApp(pkg: String) {
+        updateSettings {
+            if (pkg in hiddenPackages) {
+                copy(hiddenPackages = hiddenPackages - pkg)
+            } else {
+                copy(hiddenPackages = (hiddenPackages + pkg).distinct())
+            }
+        }
+    }
+
+    fun restoreAllHiddenApps() {
+        updateSettings { copy(hiddenPackages = emptyList(), showHiddenApps = false) }
+    }
+
+    private fun recordRecent(pkg: String) {
+        if (pkg == getApplication<Application>().packageName) return
+        updateSettings {
+            if (pkg in pinnedApps) this
+            else copy(recentApps = (listOf(pkg) + recentApps.filter { it != pkg }).take(8))
+        }
+    }
+
+    private fun ensureDefaultPins() {
+        viewModelScope.launch {
+            settings.first { _settingsLoaded.value }
+            val s = settings.value
+            if (s.pinnedInitialized) return@launch
+            val pm = getApplication<Application>().packageManager
+            fun installed(p: String) = runCatching { pm.getPackageInfo(p, 0); true }.getOrDefault(false)
+            val sync = listOf(
+                "cn.manstep.phonemirrorBox", "com.carlinkit.car", "com.autokit", "com.carletter.car"
+            ).firstOrNull { installed(it) }
+            val defaults = listOfNotNull("com.google.android.apps.maps", sync)
+            updateSettings { if (pinnedInitialized) this else copy(pinnedApps = defaults, pinnedInitialized = true) }
+        }
+    }
+
+    init { ensureDefaultPins() }
 
     fun removeShortcut(slot: Int) {
         updateSettings {
@@ -113,7 +172,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _shortcutPickerSlot.value = null
     }
 
-    // ── CarPlay / Android Auto picker ─────────────────────────────────────────
     enum class AppPickerTarget { CARPLAY, ANDROID_AUTO, PIP, RADIO }
 
     private val _appPickerTarget = MutableStateFlow<AppPickerTarget?>(null)
@@ -165,8 +223,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     spanY = spanY.coerceIn(1, GRID_ROWS - w.gridY)
                 ) else w
             }
-            // Re-run collision resolution so enlarging a widget pushes neighbors
-            // aside instead of stacking on top of them
             val activeIds = activeWidgetIds()
             val active    = resized.filter { it.enabled && it.id in activeIds }
             val inactive  = resized.filter { !it.enabled || it.id !in activeIds }
@@ -192,7 +248,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             var layout    = widgetLayout
             var cell      = freeCellIn(layout, activeIds)
 
-            // If grid is full, shrink the largest multi-cell widget by one span to make room
             if (cell == null) {
                 val candidate = layout
                     .filter { it.enabled && it.id in activeIds && it.spanX * it.spanY > 1 }
@@ -224,8 +279,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val idx       = layout.indexOfFirst { it.id == id }
             val newLayout = if (idx >= 0) layout.toMutableList().also { list ->
                 val w = list[idx]
-                // Try to keep the widget's previous span; if no free area fits it,
-                // fall back to 1×1 at the free cell so it can't overlap neighbors
                 val area = if (w.spanX > 1 || w.spanY > 1) freeAreaIn(layout, activeIds, w.spanX, w.spanY) else null
                 list[idx] = if (area != null)
                     w.copy(enabled = true, gridX = area.first, gridY = area.second)
@@ -257,8 +310,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun updateSoundboardPad(index: Int, pad: SoundPadConfig) {
         updateSettings {
-            // Persisted lists from older versions may be shorter than the 6 pads
-            // the widget displays — pad before assigning to avoid IndexOutOfBounds
             val padded = soundboardPads.toMutableList()
             while (padded.size <= index) padded.add(SoundPadConfig("+", synthType = ""))
             padded[index] = pad
@@ -294,14 +345,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _appPickerTarget.value = null
     }
 
-    // ── Rearrange mode ────────────────────────────────────────────────────────
     private val _rearrangeMode = MutableStateFlow(false)
     val rearrangeMode: StateFlow<Boolean> = _rearrangeMode
 
     fun toggleRearrangeMode() { _rearrangeMode.value = !_rearrangeMode.value }
     fun exitRearrangeMode()   { _rearrangeMode.value = false }
 
-    // ── Installed apps ────────────────────────────────────────────────────────
+    // ── App Drawer Loading (ACTION_MAIN + CATEGORY_LAUNCHER) ──────────────────
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
     val apps: StateFlow<List<AppInfo>> = _apps
 
@@ -312,48 +362,51 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (_appsLoading.value) return
         viewModelScope.launch(Dispatchers.IO) {
             _appsLoading.value = true
-            val pm = getApplication<Application>().packageManager
+            val appContext = getApplication<Application>()
+            val pm = appContext.packageManager
+            val selfPackageName = appContext.packageName
+            val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
 
-            // Use getInstalledApplications — same source Android Settings uses,
-            // catches apps with no launcher/ACTION_MAIN activity (e.g. CarPlay companions)
-            _apps.value = pm.getInstalledApplications(0)
-                .mapNotNull { appInfo ->
+            _apps.value = pm.queryIntentActivities(launcherIntent, 0)
+                .mapNotNull { resolveInfo ->
                     try {
-                        val label = pm.getApplicationLabel(appInfo).toString()
+                        val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
+                        val pkg = activityInfo.packageName
+                        if (pkg.isNullOrBlank() || pkg == selfPackageName) return@mapNotNull null
+                        val appInfo = activityInfo.applicationInfo
+                        val label = resolveInfo.loadLabel(pm)?.toString()?.takeIf { it.isNotBlank() }
+                            ?: pm.getApplicationLabel(appInfo).toString()
                         if (label.isBlank()) return@mapNotNull null
+                        val icon = runCatching { resolveInfo.loadIcon(pm) }.getOrNull()
+                            ?: pm.getApplicationIcon(appInfo)
                         AppInfo(
-                            packageName = appInfo.packageName,
+                            packageName = pkg,
                             appName     = label,
-                            icon        = pm.getApplicationIcon(appInfo),
+                            icon        = icon,
                             isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
                         )
                     } catch (_: Exception) { null }
                 }
                 .distinctBy { it.packageName }
-                .sortedBy { it.appName }
+                .sortedBy { it.appName.lowercase() }
             _appsLoading.value = false
         }
     }
 
-    fun launchApp(packageName: String) {
-        val app = getApplication<Application>()
-        val pm  = app.packageManager
-        // Try standard launch intent first; fall back to first ACTION_MAIN activity in package
-        val intent = pm.getLaunchIntentForPackage(packageName)
-            ?: pm.queryIntentActivities(
-                Intent(Intent.ACTION_MAIN).setPackage(packageName), 0
-            ).firstOrNull()?.activityInfo?.let { ai ->
-                Intent(Intent.ACTION_MAIN).apply {
-                    setClassName(ai.packageName, ai.name)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            }
-        intent?.let { app.startActivity(it) }
+    fun recordRecentApp(pkg: String) {
+        recordRecent(pkg)
     }
 
-    // ── Now Playing ───────────────────────────────────────────────────────────
+    fun launchApp(packageName: String) {
+        val app = getApplication<Application>()
+        if (com.openlauncher.app.ui.screen.launchInFullscreen(app, packageName)) {
+            recordRecent(packageName)
+        }
+    }
+
+    // ── Media Session ─────────────────────────────────────────────────────────
     val nowPlaying: StateFlow<NowPlayingState?> = MediaListenerService.nowPlaying
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun playPause() { nowPlaying.value?.controller?.also { ctrl ->
         val state = ctrl.playbackState?.state
@@ -379,9 +432,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         weatherJob?.cancel()
         weatherJob = viewModelScope.launch {
             try {
-                // Always request celsius — the state stores celsius and the widget
-                // converts for display, so requesting fahrenheit just round-tripped
-                // the value through two lossy conversions
                 val resp = WeatherApi.service.getForecast(lat, lon, temperatureUnit = "celsius")
                 resp.currentWeather?.let { cw ->
                     _weather.value = WeatherState(
@@ -398,15 +448,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ── Location & Compass ────────────────────────────────────────────────────
+    // ── Location & Day/Night ──────────────────────────────────────────────────
     val location: StateFlow<LocationData?> = locationMgr.location
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val compassBearing: StateFlow<Float> = locationMgr.bearing
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
 
-    // Re-evaluated every minute: a parked car produces no location updates
-    // (minDistance filters), so AUTO mode must also flip on time alone.
     private val minuteTicker = flow { while (true) { emit(Unit); delay(60_000L) } }
 
     val isDayMode: StateFlow<Boolean> = combine(settings, locationMgr.location, minuteTicker) { s, loc, _ ->
@@ -414,7 +462,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             DayNightMode.DARK   -> false
             DayNightMode.LIGHT  -> true
             DayNightMode.AUTO   -> if (loc != null) SunriseSunset.isDay(loc.latitude, loc.longitude) else false
-            DayNightMode.SYSTEM -> false // placeholder — overridden in MainActivity via isSystemInDarkTheme()
+            DayNightMode.SYSTEM -> false
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -431,19 +479,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         MediaListenerService.requestRefresh()
     }
 
-    // ── Radio ─────────────────────────────────────────────────────────────────
-    // Android has no public FM tuner API (the Broadcast Radio HAL is @SystemApi),
-    // so the radio widget mirrors the unit's real tuner through two backends:
-    //   1. szchoiceway MCU units — Settings.Global JSON + canbus broadcasts.
-    //      Full control: seek, band switching, direct frequency tuning.
-    //   2. Any other unit — the vendor radio app's MediaSession. Frequency and
-    //      station are parsed from session metadata; seek maps to skip next/prev
-    //      (how steering-wheel keys drive these apps). No direct tuning.
     data class HardwareRadioState(
         val band: String,
         val freq: String,
         val stationName: String? = null,
-        // Direct tuning + FM1/FM2/FM3/AM switching — vendor MCU backend only
         val canTune: Boolean = false
     ) {
         val display get() = "$band  $freq"
@@ -471,7 +510,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val json = AndroidSettings.Global.getString(
                 getApplication<Application>().contentResolver, "SYS_MEDIA_INFO_JSON"
             ) ?: return null
-            val title = org.json.JSONObject(json).optString("mediaTitle", "") // e.g. "FM1 90.10"
+            val title = org.json.JSONObject(json).optString("mediaTitle", "")
             if (title.isEmpty()) return null
             val parts = title.trim().split("\\s+".toRegex())
             if (parts.size < 2) return null
@@ -499,8 +538,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         radioObserver = observer
     }
 
-    // ── MediaSession radio backend (universal fallback) ───────────────────────
-
     private fun looksLikeRadioPackage(pkg: String): Boolean {
         val p = pkg.lowercase()
         return "radio" in p || "fmradio" in p || "tuner" in p || p.endsWith(".fm") || ".fm." in p
@@ -511,7 +548,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return if (assigned.isNotEmpty()) pkg == assigned else looksLikeRadioPackage(pkg)
     }
 
-    // Matches "FM1 90.10", "99.9 MHz", "FM 99.9 WXYZ", "1040 kHz", "99,9" …
     private val sessionFreqPattern =
         Regex("""(?:\b(FM\s?\d?|AM)\b)?\s*(\d{2,4}(?:[.,]\d{1,2})?)\s*(MHz|kHz)?""", RegexOption.IGNORE_CASE)
 
@@ -531,14 +567,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             freqVal != null && freqVal in 520f..1710f -> "AM"
             else                                      -> "FM"
         }
-        // Whatever isn't the frequency is the station / RDS text
         val station = (if (match != null) text.replace(match.value, "") else text)
             .trim(' ', '-', '|', '/', '•')
             .takeIf { it.isNotBlank() }
         return HardwareRadioState(band = band, freq = rawFreq ?: "—", stationName = station, canTune = false)
     }
 
-    // MCU backend wins when present; otherwise mirror the radio app's session
     val hardwareRadio: StateFlow<HardwareRadioState?> =
         combine(_mcuRadio, nowPlaying, settings) { mcu, np, _ ->
             mcu ?: np?.let { parseSessionRadio(it) }
@@ -548,9 +582,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         c.packageName?.let { isRadioSessionPackage(it) } == true
     }
 
-    // Send a radio keyCode to the MCU via the EventService broadcast channel.
-    // Permission com.szchoiceway.permission.broadcast (prot=normal) is required and declared.
-    // keyCodes: 15=seek_up, 14=seek_down, 30=fm_cycle, 31=am
     private fun sendMcuByteArray(bytes: ByteArray) {
         runCatching {
             val intent = Intent("com.szchoiceway.eventcenter.EventUtils.ACTION_MCU_CMD_EVENT").apply {
@@ -562,12 +593,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun sendMcuBytes(vararg bytes: Byte) = sendMcuByteArray(bytes)
 
-    // Tune to a specific frequency.
-    // Canbus frame: 0x5a 0xa5 0x0d [0x91 bandByte bank(2) zeros... freqAscii] checksum
-    // Checksum = low byte of sum of all preceding bytes.
-    // Wrapped with 0x0d 0x08 sub-command prefix for MCU_CMD_DATA.
     fun radioTune(band: String, freqMhz: Float) {
-        if (!hasSzchoicewayMcu) return // direct tuning is MCU-only
+        if (!hasSzchoicewayMcu) return
         val bandByte  = when (band) { "FM3" -> 0x03.toByte(); "AM" -> 0x04.toByte(); else -> 0x01.toByte() }
         val bankStr   = if (band == "FM2") "02" else "01"
         val freqStr   = if (band == "AM") String.format(java.util.Locale.US, "%.0f", freqMhz) else String.format(java.util.Locale.US, "%.1f", freqMhz)
@@ -585,11 +612,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val mcuActive get() = _mcuRadio.value != null
 
-    // Seek routes to the MCU when that backend is live, otherwise to the radio
-    // app's MediaSession — skip next/prev is how these apps expose seek.
     fun radioSeekUp()   { if (mcuActive) sendMcuBytes(0x02, 0x0f) else radioSessionController()?.transportControls?.skipToNext() }
     fun radioSeekDown() { if (mcuActive) sendMcuBytes(0x02, 0x0e) else radioSessionController()?.transportControls?.skipToPrevious() }
-    // Band switching and direct tuning only exist on the MCU backend
     fun radioCycleFm()  { if (mcuActive) sendMcuBytes(0x02, 0x1e) }
     fun radioSwitchAm() { if (mcuActive) sendMcuBytes(0x02, 0x1f) }
     fun radioStart()    { sendMcuBytes(0x01, 0x01) }
@@ -620,7 +644,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 getApplication<Application>().startActivity(intent)
             }
         }
-        // Resume playback if the session is just paused
         radioSessionController()?.transportControls?.play()
     }
 
@@ -631,7 +654,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             _isWifi.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
             _isData.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
         } else {
-            // activeNetwork requires API 23 — legacy path for Android 5.x head units
             @Suppress("DEPRECATION")
             val info = cm.activeNetworkInfo
             @Suppress("DEPRECATION")
@@ -654,8 +676,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         loadInstalledApps()
         refreshConnectivity()
         if (hasSzchoicewayMcu) startHardwareRadioObserver()
-        // Fetch weather on first location fix, then every 30 minutes.
-        // The minute ticker covers the parked case where no location updates arrive.
         viewModelScope.launch {
             var lastFetchMs = 0L
             merge(

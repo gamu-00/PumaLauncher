@@ -19,6 +19,7 @@ class SettingsRepository(private val context: Context) {
 
     private object Keys {
         val VEHICLE_NAME       = stringPreferencesKey("vehicle_name")
+        val ACCENT_COLOR_HEX   = stringPreferencesKey("accent_color_hex")
         val ACCENT_COLOR       = intPreferencesKey("accent_color")
         val BG_COLOR           = intPreferencesKey("bg_color")
         val FONT_COLOR         = intPreferencesKey("font_color")
@@ -59,6 +60,15 @@ class SettingsRepository(private val context: Context) {
         val SPEEDOMETER_DIGITAL_ONLY = booleanPreferencesKey("speedometer_digital_only")
         val GRADIENT_DIRECTION    = stringPreferencesKey("gradient_direction")
         val USE_CUSTOM_BG_COLOR   = booleanPreferencesKey("use_custom_bg_color")
+        val COLD_BOOT_AUTO_LAUNCH   = booleanPreferencesKey("cold_boot_auto_launch")
+        val COLD_BOOT_DELAY_SECONDS = intPreferencesKey("cold_boot_delay_seconds")
+        val PINNED_APPS_JSON      = stringPreferencesKey("pinned_apps_json")
+        val RECENT_APPS_JSON      = stringPreferencesKey("recent_apps_json")
+        val PINNED_INITIALIZED    = booleanPreferencesKey("pinned_initialized")
+        val HIDDEN_PACKAGES_JSON  = stringPreferencesKey("hidden_packages_json")
+        val SHOW_HIDDEN_APPS      = booleanPreferencesKey("show_hidden_apps")
+        val AVOID_TOLLS           = booleanPreferencesKey("avoid_tolls")
+        val VOICE_GUIDANCE_ENABLED = booleanPreferencesKey("voice_guidance_enabled")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -89,9 +99,15 @@ class SettingsRepository(private val context: Context) {
                 if (loaded.none { it.gridX >= 2 }) defaults.widgetLayout else loaded
             } else defaults.widgetLayout
 
+            val accentHex = prefs[Keys.ACCENT_COLOR_HEX] ?: defaults.accentColorHex
+            val parsedAccentInt = runCatching { android.graphics.Color.parseColor(accentHex) }.getOrNull()
+                ?: prefs[Keys.ACCENT_COLOR]
+                ?: defaults.accentColor
+
             return AppSettings(
                 vehicleName    = prefs[Keys.VEHICLE_NAME]     ?: defaults.vehicleName,
-                accentColor    = prefs[Keys.ACCENT_COLOR]     ?: defaults.accentColor,
+                accentColorHex = accentHex,
+                accentColor    = parsedAccentInt,
                 backgroundColor = prefs[Keys.BG_COLOR]        ?: defaults.backgroundColor,
                 fontColor      = prefs[Keys.FONT_COLOR]       ?: defaults.fontColor,
                 wallpaperUri   = prefs[Keys.WALLPAPER_URI]    ?: defaults.wallpaperUri,
@@ -134,8 +150,24 @@ class SettingsRepository(private val context: Context) {
                 vitalsAsBars     = prefs[Keys.VITALS_AS_BARS] ?: defaults.vitalsAsBars,
                 speedometerDigitalOnly = prefs[Keys.SPEEDOMETER_DIGITAL_ONLY] ?: defaults.speedometerDigitalOnly,
                 gradientDirection = prefs[Keys.GRADIENT_DIRECTION]?.let { runCatching { GradientDirection.valueOf(it) }.getOrNull() } ?: defaults.gradientDirection,
-                useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor
+                useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor,
+                coldBootAutoLaunch = prefs[Keys.COLD_BOOT_AUTO_LAUNCH] ?: defaults.coldBootAutoLaunch,
+                coldBootDelaySeconds = (prefs[Keys.COLD_BOOT_DELAY_SECONDS] ?: defaults.coldBootDelaySeconds).coerceIn(1, 30),
+                pinnedApps = readStringList(prefs[Keys.PINNED_APPS_JSON]),
+                recentApps = readStringList(prefs[Keys.RECENT_APPS_JSON]),
+                pinnedInitialized = prefs[Keys.PINNED_INITIALIZED] ?: defaults.pinnedInitialized,
+                hiddenPackages = readStringList(prefs[Keys.HIDDEN_PACKAGES_JSON]),
+                showHiddenApps = prefs[Keys.SHOW_HIDDEN_APPS] ?: defaults.showHiddenApps,
+                avoidTolls = prefs[Keys.AVOID_TOLLS] ?: defaults.avoidTolls,
+                voiceGuidanceEnabled = prefs[Keys.VOICE_GUIDANCE_ENABLED] ?: defaults.voiceGuidanceEnabled
             )
+    }
+
+    private fun readStringList(json: String?): List<String> {
+        if (json == null) return emptyList()
+        return runCatching {
+            gson.fromJson<List<String>>(json, object : TypeToken<List<String>>() {}.type)
+        }.getOrNull()?.filter { it.isNotBlank() } ?: emptyList()
     }
 
     suspend fun saveSettings(s: AppSettings) {
@@ -152,6 +184,7 @@ class SettingsRepository(private val context: Context) {
 
     private fun writeSettings(prefs: MutablePreferences, s: AppSettings) {
             prefs[Keys.VEHICLE_NAME]       = s.vehicleName
+            prefs[Keys.ACCENT_COLOR_HEX]   = s.accentColorHex
             prefs[Keys.ACCENT_COLOR]       = s.accentColor
             prefs[Keys.BG_COLOR]           = s.backgroundColor
             prefs[Keys.FONT_COLOR]         = s.fontColor
@@ -191,6 +224,15 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.SPEEDOMETER_DIGITAL_ONLY] = s.speedometerDigitalOnly
             prefs[Keys.GRADIENT_DIRECTION] = s.gradientDirection.name
             prefs[Keys.USE_CUSTOM_BG_COLOR] = s.useCustomBackgroundColor
+            prefs[Keys.COLD_BOOT_AUTO_LAUNCH] = s.coldBootAutoLaunch
+            prefs[Keys.COLD_BOOT_DELAY_SECONDS] = s.coldBootDelaySeconds.coerceIn(1, 30)
+            prefs[Keys.PINNED_APPS_JSON] = gson.toJson(s.pinnedApps)
+            prefs[Keys.RECENT_APPS_JSON] = gson.toJson(s.recentApps)
+            prefs[Keys.PINNED_INITIALIZED] = s.pinnedInitialized
+            prefs[Keys.HIDDEN_PACKAGES_JSON] = gson.toJson(s.hiddenPackages)
+            prefs[Keys.SHOW_HIDDEN_APPS] = s.showHiddenApps
+            prefs[Keys.AVOID_TOLLS] = s.avoidTolls
+            prefs[Keys.VOICE_GUIDANCE_ENABLED] = s.voiceGuidanceEnabled
     }
 
     suspend fun resetToDefaults() {

@@ -1,4 +1,4 @@
-package com.openlauncher.app.ui.theme
+﻿package com.openlauncher.app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
@@ -31,15 +31,16 @@ fun AppFont.toFontFamily(): FontFamily = when (this) {
 }
 
 fun launcherTypography(bold: Boolean, scale: Float, fontFamily: FontFamily = FontFamily.Default): Typography {
-    val weight = if (bold) FontWeight.Bold else FontWeight.Normal
+    // High-contrast automotive typography: body text is Medium weight by default
+    val weight = if (bold) FontWeight.Bold else FontWeight.Medium
     return Typography(
-        displayLarge   = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Light,  fontSize = (57 * scale).sp),
-        displayMedium  = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Light,  fontSize = (45 * scale).sp),
+        displayLarge   = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Normal, fontSize = (57 * scale).sp),
+        displayMedium  = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Normal, fontSize = (45 * scale).sp),
         headlineLarge  = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (32 * scale).sp),
         headlineMedium = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (28 * scale).sp),
         headlineSmall  = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (24 * scale).sp),
-        titleLarge     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (22 * scale).sp),
-        titleMedium    = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (16 * scale).sp),
+        titleLarge     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.SemiBold, fontSize = (22 * scale).sp),
+        titleMedium    = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.SemiBold, fontSize = (16 * scale).sp),
         titleSmall     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (14 * scale).sp),
         bodyLarge      = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (16 * scale).sp),
         bodyMedium     = TextStyle(fontFamily = fontFamily, fontWeight = weight,            fontSize = (14 * scale).sp),
@@ -49,3 +50,4 @@ fun launcherTypography(bold: Boolean, scale: Float, fontFamily: FontFamily = Fon
         labelSmall     = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Medium, fontSize = (11 * scale).sp),
     )
 }
+

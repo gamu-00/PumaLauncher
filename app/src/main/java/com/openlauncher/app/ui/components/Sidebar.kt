@@ -1,521 +1,447 @@
 package com.openlauncher.app.ui.components
 
+import android.content.Context
 import android.graphics.drawable.Drawable
+import android.location.LocationManager
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.zIndex
 import androidx.core.graphics.drawable.toBitmap
-import com.openlauncher.app.data.AppSettings
 import com.openlauncher.app.data.DefaultShortcutIcon
-import com.openlauncher.app.data.ShortcutConfig
 import com.openlauncher.app.model.NavDestination
-import com.openlauncher.app.ui.theme.LocalDayMode
-import kotlin.math.roundToInt
+import com.openlauncher.app.ui.theme.*
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-private val ICON_SIZE   = 22.dp
-private val SLOT_SIZE   = 52.dp
+val SIDEBAR_WIDTH = 80.dp
+private val SLOT_SIZE = 52.dp
 
+const val PKG_MAPS = "com.google.android.apps.maps"
+const val PKG_NETFLIX = "com.netflix.mediaclient"
+const val PKG_CAR_STOCK = "com.carletter.car"
+val DEFAULT_SLOT_PACKAGES = listOf(PKG_MAPS, PKG_NETFLIX, PKG_CAR_STOCK)
+
+/** Effective package of a quick slot: the user's choice, else the preset. */
+fun slotPackage(userPackage: String?, slot: Int): String =
+    if (!userPackage.isNullOrEmpty()) userPackage else DEFAULT_SLOT_PACKAGES.getOrElse(slot) { "" }
+
+/**
+ * Mini AA Nav Rail (80dp): digital clock (long-press = cold-boot settings), Wi-Fi/GPS
+ * indicators, up to 4 dynamic slots (pinned apps first, then recents), App Drawer and
+ * Settings buttons. Long-press on a slot: pin/unpin or replace app.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Sidebar(
     currentDest: NavDestination,
-    settings: AppSettings,
+    railPackages: List<String>,
+    pinnedPackages: Set<String>,
+    isWifi: Boolean,
+    isData: Boolean,
     installedIconFor: (String) -> Drawable?,
     onNavigate: (NavDestination) -> Unit,
-    onShortcutClick: (Int) -> Unit,
-    onShortcutLongPress: (Int) -> Unit,
-    onShortcutRemove: (Int) -> Unit,
-    onShortcutSetIcon: (Int, DefaultShortcutIcon?) -> Unit,
-    onReorder: (from: Int, to: Int) -> Unit,
-    isHorizontal: Boolean = false,
+    onRailClick: (String) -> Unit,
+    onTogglePin: (String) -> Unit,
+    onReplace: (Int) -> Unit,
+    accent: Color = MaterialTheme.colorScheme.primary,
+    coldBootAutoLaunch: Boolean = false,
+    coldBootDelaySeconds: Int = 4,
+    onUpdateColdBoot: (Boolean, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
-    val isDayMode    = LocalDayMode.current
-    val accent       = Color(settings.accentColor)
-    val sidebarBg    = if (isDayMode) Color(0xFFE0E0E0) else Color.Black.copy(alpha = 0.4f)
-    val iconInactive = if (isDayMode) Color(0xFF777777) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
-    val dividerColor = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
-    val density      = LocalDensity.current
-    val slotSizePx   = with(density) { SLOT_SIZE.toPx() }
-
-    var actionSheetSlot by remember { mutableStateOf<Int?>(null) }
-    var iconPickerSlot  by remember { mutableStateOf<Int?>(null) }
-
-    var draggingIndex by remember { mutableIntStateOf(-1) }
-    var dragOffsetPx  by remember { mutableFloatStateOf(0f) }
-
-    fun dragTargetIndex(): Int = if (draggingIndex < 0) -1 else
-        (draggingIndex + (dragOffsetPx / slotSizePx).roundToInt())
-            .coerceIn(0, settings.shortcuts.size - 1)
-
-    fun slotTranslation(index: Int): Float {
-        if (draggingIndex < 0 || index == draggingIndex) return 0f
-        val from = draggingIndex
-        val to   = dragTargetIndex()
-        return when {
-            from < to && index in (from + 1)..to -> -slotSizePx
-            from > to && index in to until from  ->  slotSizePx
-            else -> 0f
+    val context = LocalContext.current
+    var now by remember { mutableStateOf(Date()) }
+    var gpsOn by remember { mutableStateOf(true) }
+    var showClockSettings by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        var tick = 0
+        while (true) {
+            now = Date()
+            if (tick % 5 == 0) {
+                gpsOn = runCatching {
+                    (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager)
+                        .isProviderEnabled(LocationManager.GPS_PROVIDER)
+                }.getOrDefault(false)
+            }
+            tick++
+            delay(1000)
         }
     }
+    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
-    val shortcutsContent: @Composable () -> Unit = {
-        settings.shortcuts.forEachIndexed { index, shortcut ->
-            val isDragging  = (index == draggingIndex)
-            val translation = if (isDragging) dragOffsetPx else slotTranslation(index)
+    BoxWithConstraints(
+        modifier = modifier
+            .widthIn(min = 68.dp, max = 104.dp)
+            .fillMaxHeight()
+    ) {
+        val uiScale = (maxHeight.value / 480f).coerceIn(0.85f, 1.35f)
+        val outerPad = (6f * uiScale).dp
+        val verticalPad = (10f * uiScale).dp
+        val itemGap = (8f * uiScale).dp
+        val moduleShape = RoundedCornerShape((18f * uiScale).dp)
+        val cardShape = RoundedCornerShape((12f * uiScale).dp)
+        val slotSize = (maxWidth * 0.68f).coerceIn(44.dp, (56f * uiScale).dp)
 
-            ShortcutSlot(
-                shortcut        = shortcut,
-                accent          = accent,
-                resolvedIcon    = if (shortcut.packageName.isNotEmpty())
-                                      installedIconFor(shortcut.packageName) else null,
-                isDragging      = isDragging,
-                dragTranslation = translation,
-                isHorizontal    = isHorizontal,
-                onClick         = { onShortcutClick(index) },
-                onLongPress     = {
-                    if (shortcut.packageName.isNotEmpty()) {
-                        actionSheetSlot = index
-                    } else {
-                        onShortcutLongPress(index)
-                    }
-                },
-                onDragStart = {
-                    draggingIndex = index
-                    dragOffsetPx  = 0f
-                },
-                onDragDelta = { d -> dragOffsetPx += d },
-                onDragEnd   = {
-                    val from = draggingIndex
-                    val to   = dragTargetIndex()
-                    if (from >= 0 && to != from) onReorder(from, to)
-                    draggingIndex = -1
-                    dragOffsetPx  = 0f
-                }
-            )
-        }
-    }
-
-    val navButtons: @Composable () -> Unit = {
-        NavButton(
-            icon         = Icons.Default.Apps,
-            label        = "Apps",
-            isActive     = currentDest == NavDestination.APP_LIBRARY,
-            accent       = accent,
-            iconInactive = iconInactive,
-            isHorizontal = isHorizontal,
-            onClick      = { onNavigate(NavDestination.APP_LIBRARY) }
-        )
-        NavButton(
-            icon         = Icons.Default.Settings,
-            label        = "Settings",
-            isActive     = currentDest == NavDestination.SETTINGS,
-            accent       = accent,
-            iconInactive = iconInactive,
-            isHorizontal = isHorizontal,
-            onClick      = { onNavigate(NavDestination.SETTINGS) }
-        )
-        NavButton(
-            icon         = Icons.Default.Home,
-            label        = "Home",
-            isActive     = currentDest == NavDestination.HOME,
-            accent       = accent,
-            iconInactive = iconInactive,
-            isHorizontal = isHorizontal,
-            onClick      = { onNavigate(NavDestination.HOME) }
-        )
-    }
-
-    if (isHorizontal) {
         Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(sidebarBg)
-        ) {
-            // Shortcuts centred, inset past the edge-pinned nav buttons and
-            // scrollable — an unbounded row ran beneath the nav buttons and off
-            // both screen edges once enough slots were added
-            Row(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxHeight()
-                    .padding(horizontal = 150.dp)
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                shortcutsContent()
-            }
-
-            // Nav buttons pinned to one edge, Home always outermost
-            Row(
-                modifier = Modifier
-                    .align(if (settings.bottomBarShortcutsRight) Alignment.CenterEnd else Alignment.CenterStart)
-                    .fillMaxHeight(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!settings.bottomBarShortcutsRight) {
-                    NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }
-                    NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
-                    NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
-                } else {
-                    NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
-                    NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
-                    NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }
-                }
-            }
-        }
-    } else {
-        Column(
-            modifier = modifier
-                .width(56.dp)
-                .fillMaxHeight()
-                .background(sidebarBg),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(outerPad)
+                .clip(moduleShape)
+                .background(AaPanel)
+                .border(1.dp, AaBorder, moduleShape)
         ) {
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(top = 6.dp, bottom = 2.dp),
+                modifier = Modifier.fillMaxSize().padding(vertical = verticalPad),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                shortcutsContent()
-            }
+                val time = timeFmt.format(now)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(cardShape)
+                        .combinedClickable(onClick = {}, onLongClick = { showClockSettings = true })
+                        .padding(horizontal = (4f * uiScale).dp, vertical = (2f * uiScale).dp)
+                ) {
+                    Text(
+                        text = time.substringBefore(':'),
+                        color = AaTextPrimary,
+                        fontSize = (28f * uiScale).sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = time.substringAfter(':'),
+                        color = accent,
+                        fontSize = (24f * uiScale).sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+                Spacer(Modifier.height(itemGap))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(itemGap),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val netIcon = when {
+                        isWifi -> Icons.Default.Wifi
+                        isData -> Icons.Default.SignalCellularAlt
+                        else   -> Icons.Default.WifiOff
+                    }
+                    Icon(
+                        netIcon, "Network",
+                        tint = if (isWifi || isData) accent else AaTextSecondary.copy(alpha = 0.5f),
+                        modifier = Modifier.size((18f * uiScale).dp)
+                    )
+                    Icon(
+                        if (gpsOn) Icons.Default.GpsFixed else Icons.Default.GpsOff, "GPS",
+                        tint = if (gpsOn) accent else AaTextSecondary.copy(alpha = 0.5f),
+                        modifier = Modifier.size((18f * uiScale).dp)
+                    )
+                }
 
-            HorizontalDivider(color = dividerColor)
-            navButtons()
-            Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.weight(1f))
+
+                // Dynamic slots: pinned first, then recents
+                railPackages.forEachIndexed { index, pkg ->
+                    RailSlot(
+                        pkg = pkg,
+                        drawable = installedIconFor(pkg),
+                        pinned = pkg in pinnedPackages,
+                        accent = accent,
+                        slotSize = slotSize,
+                        cardShape = cardShape,
+                        onClick = { onRailClick(pkg) },
+                        onTogglePin = {
+                            onTogglePin(pkg)
+                        },
+                        onReplace = { onReplace(index) }
+                    )
+                    Spacer(Modifier.height(itemGap))
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                val drawerActive = currentDest == NavDestination.APP_LIBRARY
+                RailButton(Icons.Default.Apps, "App Drawer", drawerActive, accent, slotSize, cardShape) {
+                    val nextDest = if (drawerActive) NavDestination.HOME else NavDestination.APP_LIBRARY
+                    onNavigate(nextDest)
+                }
+                Spacer(Modifier.height(itemGap))
+                val settingsActive = currentDest == NavDestination.SETTINGS
+                RailButton(Icons.Default.Settings, "Impostazioni", settingsActive, accent, slotSize, cardShape) {
+                    val nextDest = if (settingsActive) NavDestination.HOME else NavDestination.SETTINGS
+                    onNavigate(nextDest)
+                }
+            }
         }
     }
 
-    // ── Action sheet dialog ──────────────────────────────────────────────────
-    actionSheetSlot?.let { slot ->
-        ShortcutActionDialog(
-            accent      = accent,
-            onChangeApp = {
-                actionSheetSlot = null
-                onShortcutLongPress(slot)
+    if (showClockSettings) {
+        ColdBootSettingsDialog(
+            enabled = coldBootAutoLaunch,
+            delaySeconds = coldBootDelaySeconds,
+            accent = accent,
+            onUpdate = onUpdateColdBoot,
+            onOpenFullSettings = {
+                showClockSettings = false
+                onNavigate(NavDestination.SETTINGS)
             },
-            onCustomizeIcon = {
-                actionSheetSlot = null
-                iconPickerSlot = slot
-            },
-            onRemove = {
-                actionSheetSlot = null
-                onShortcutRemove(slot)
-            },
-            onDismiss = { actionSheetSlot = null }
+            onDismiss = {
+                showClockSettings = false
+            }
         )
     }
+}
 
-    // ── Icon picker dialog ───────────────────────────────────────────────────
-    iconPickerSlot?.let { slot ->
-        IconPickerDialog(
-            accent          = accent,
-            hasNativeIcon   = settings.shortcuts.getOrNull(slot)?.packageName?.isNotEmpty() == true,
-            currentOverride = settings.shortcuts.getOrNull(slot)?.customIconOverride,
-            onPick  = { icon ->
-                iconPickerSlot = null
-                onShortcutSetIcon(slot, icon)
-            },
-            onDismiss = { iconPickerSlot = null }
-        )
+@Composable
+private fun RailButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    accent: Color,
+    slotSize: androidx.compose.ui.unit.Dp = SLOT_SIZE,
+    cardShape: RoundedCornerShape = AaCardShape,
+    onClick: () -> Unit
+) {
+    val activeContentColor = if (accent.luminance() > 0.5f) Color.Black else Color.White
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(slotSize)
+            .heightIn(min = 44.dp)
+            .clip(cardShape)
+            .background(if (active) accent else AaPanelHigh)
+            .border(1.dp, if (active) accent else AaBorder, cardShape)
+            .clickable(onClick = onClick)
+    ) {
+        Icon(icon, label, tint = if (active) activeContentColor else AaTextPrimary, modifier = Modifier.size(slotSize * 0.5f))
+    }
+}
+
+@Composable
+private fun ColdBootSettingsDialog(
+    enabled: Boolean,
+    delaySeconds: Int,
+    accent: Color,
+    onUpdate: (Boolean, Int) -> Unit,
+    onOpenFullSettings: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(380.dp)
+                .clip(AaModuleShape)
+                .background(AaPanelHigh)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Default.RocketLaunch, null, tint = accent, modifier = Modifier.size(24.dp))
+                Text(
+                    text = "Impostazioni Cold-Boot",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Avvio automatico a freddo",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Lancia Google Maps nel riquadro sinistro all'avvio",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { onUpdate(it, delaySeconds) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = onAccent,
+                        checkedTrackColor = accent
+                    )
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Ritardo avvio (attesa GPS e rete)",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 13.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { if (delaySeconds > 1) onUpdate(enabled, delaySeconds - 1) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Remove, "Meno", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                        Text(
+                            text = "${delaySeconds}s",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp)
+                        )
+                        IconButton(
+                            onClick = { if (delaySeconds < 15) onUpdate(enabled, delaySeconds + 1) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Add, "Piu", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+                Slider(
+                    value = delaySeconds.toFloat(),
+                    onValueChange = { onUpdate(enabled, it.toInt().coerceIn(1, 15)) },
+                    valueRange = 1f..15f,
+                    steps = 13,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onOpenFullSettings) {
+                    Icon(Icons.Default.Settings, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Tutte le impostazioni", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = accent)
+                ) {
+                    Text("Chiudi", color = onAccent, fontSize = 13.sp)
+                }
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShortcutSlot(
-    shortcut: ShortcutConfig,
+private fun RailSlot(
+    pkg: String,
+    drawable: Drawable?,
+    pinned: Boolean,
     accent: Color,
-    resolvedIcon: Drawable?,
-    isDragging: Boolean,
-    dragTranslation: Float,
-    isHorizontal: Boolean,
+    slotSize: androidx.compose.ui.unit.Dp = SLOT_SIZE,
+    cardShape: RoundedCornerShape = AaCardShape,
     onClick: () -> Unit,
-    onLongPress: () -> Unit,
-    onDragStart: () -> Unit,
-    onDragDelta: (Float) -> Unit,
-    onDragEnd: () -> Unit
+    onTogglePin: () -> Unit,
+    onReplace: () -> Unit
 ) {
-    val currentOnClick      by rememberUpdatedState(onClick)
-    val currentOnLongPress  by rememberUpdatedState(onLongPress)
-    val currentOnDragStart  by rememberUpdatedState(onDragStart)
-    val currentOnDragDelta  by rememberUpdatedState(onDragDelta)
-    val currentOnDragEnd    by rememberUpdatedState(onDragEnd)
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .then(
-                if (isHorizontal) Modifier.fillMaxHeight().width(SLOT_SIZE)
-                else              Modifier.fillMaxWidth().height(SLOT_SIZE)
-            )
-            .zIndex(if (isDragging) 1f else 0f)
-            .graphicsLayer {
-                if (isHorizontal) translationX = dragTranslation else translationY = dragTranslation
-                alpha = if (isDragging) 0.55f else 1f
-            }
-            .combinedClickable(
-                onClick     = { currentOnClick() },
-                onLongClick = { }
-            )
-            .pointerInput(isHorizontal) {
-                var longPressTriggered = false
-                var hasSignificantDrag = false
-                var totalDrag          = 0f
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { _ ->
-                        longPressTriggered = true
-                        hasSignificantDrag = false
-                        totalDrag          = 0f
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        val delta = if (isHorizontal) dragAmount.x else dragAmount.y
-                        totalDrag += delta
-                        if (!hasSignificantDrag && kotlin.math.abs(totalDrag) > viewConfiguration.touchSlop) {
-                            hasSignificantDrag = true
-                            currentOnDragStart()
-                        }
-                        if (hasSignificantDrag) currentOnDragDelta(delta)
-                    },
-                    onDragEnd = {
-                        if (longPressTriggered && !hasSignificantDrag) currentOnLongPress()
-                        if (hasSignificantDrag) currentOnDragEnd()
-                        longPressTriggered = false
-                        hasSignificantDrag = false
-                        totalDrag          = 0f
-                    },
-                    onDragCancel = {
-                        if (hasSignificantDrag) currentOnDragEnd()
-                        longPressTriggered = false
-                        hasSignificantDrag = false
-                        totalDrag          = 0f
-                    }
-                )
-            }
-    ) {
-        val iconInactive = if (LocalDayMode.current) Color(0xFF777777) else Color(0xFF3A3A3A)
-        val override = shortcut.customIconOverride
-        when {
-            override != null && override != DefaultShortcutIcon.NONE -> {
-                Icon(
-                    imageVector        = override.toIcon(),
-                    contentDescription = shortcut.label,
-                    tint               = iconInactive,
-                    modifier           = Modifier.size(ICON_SIZE)
-                )
-            }
-            resolvedIcon != null -> {
-                // Cache per icon — every slot recomposes each drag frame, and an
-                // un-remembered toBitmap allocated a fresh bitmap per slot per frame
-                val bmp = remember(resolvedIcon) { resolvedIcon.toBitmap(44, 44) }
-                Icon(
-                    painter            = BitmapPainter(bmp.asImageBitmap()),
-                    contentDescription = shortcut.label,
-                    tint               = Color.Unspecified,
-                    modifier           = Modifier.size(26.dp)
-                )
-            }
-            shortcut.isDefault -> {
-                Icon(
-                    imageVector        = shortcut.defaultIcon.toIcon(),
-                    contentDescription = shortcut.label,
-                    tint               = iconInactive,
-                    modifier           = Modifier.size(ICON_SIZE)
-                )
-            }
-            else -> {
-                Icon(
-                    imageVector        = Icons.Default.Add,
-                    contentDescription = "Add shortcut",
-                    tint               = if (LocalDayMode.current) Color(0xFFBBBBBB) else Color(0xFF252525),
-                    modifier           = Modifier.size(ICON_SIZE)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShortcutActionDialog(
-    accent: Color,
-    onChangeApp: () -> Unit,
-    onCustomizeIcon: () -> Unit,
-    onRemove: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF111111))
-                .border(1.dp, Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
-                .padding(vertical = 4.dp)
-                .width(180.dp)
+                .size(slotSize)
+                .heightIn(min = 44.dp)
+                .clip(cardShape)
+                .background(AaPanelHigh)
+                .border(1.dp, if (pinned) accent else AaBorder, cardShape)
+                .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
         ) {
-            ActionRow("CHANGE APP",     Icons.Default.SwapHoriz, accent, onChangeApp)
-            HorizontalDivider(color = Color(0xFF1A1A1A))
-            ActionRow("CUSTOMIZE ICON", Icons.Default.Palette,   accent, onCustomizeIcon)
-            HorizontalDivider(color = Color(0xFF1A1A1A))
-            ActionRow("REMOVE",         Icons.Default.Delete,     Color(0xFF993333), onRemove)
-        }
-    }
-}
-
-@Composable
-private fun ActionRow(label: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
-        Text(label, color = tint, fontSize = 10.sp, letterSpacing = 1.sp)
-    }
-}
-
-@Composable
-private fun IconPickerDialog(
-    accent: Color,
-    hasNativeIcon: Boolean,
-    currentOverride: DefaultShortcutIcon?,
-    onPick: (DefaultShortcutIcon?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val vectorOptions = DefaultShortcutIcon.entries.filter { it != DefaultShortcutIcon.NONE }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF111111))
-                .border(1.dp, Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
-                .padding(12.dp)
-        ) {
-            Text(
-                "CHOOSE ICON",
-                color         = Color(0xFF888888),
-                fontSize      = 9.sp,
-                letterSpacing = 2.sp,
-                modifier      = Modifier.padding(bottom = 10.dp)
-            )
-
-            if (hasNativeIcon) {
-                Row(
+            if (drawable != null) {
+                val bmp = remember(pkg, drawable) { drawable.toBitmap(96, 96).asImageBitmap() }
+                Image(bitmap = bmp, contentDescription = pkg, modifier = Modifier.size(slotSize * 0.65f))
+            } else {
+                Icon(Icons.Default.Apps, pkg, tint = AaTextPrimary, modifier = Modifier.size(slotSize * 0.54f))
+            }
+            if (pinned) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (currentOverride == null) accent.copy(alpha = 0.15f) else Color.Transparent)
-                        .clickable { onPick(null) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Icon(Icons.Default.Apps, null, tint = if (currentOverride == null) accent else Color(0xFF666666), modifier = Modifier.size(18.dp))
-                    Text(
-                        "NATIVE APP ICON",
-                        color         = if (currentOverride == null) accent else Color(0xFF888888),
-                        fontSize      = 9.sp,
-                        letterSpacing = 1.sp
-                    )
-                }
-                HorizontalDivider(color = Color(0xFF1A1A1A), modifier = Modifier.padding(vertical = 6.dp))
-            }
-
-            LazyVerticalGrid(
-                columns               = GridCells.Fixed(5),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalArrangement   = Arrangement.spacedBy(5.dp),
-                modifier              = Modifier.heightIn(max = 300.dp)
-            ) {
-                items(vectorOptions) { iconOption ->
-                    val isSelected = currentOverride == iconOption
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) accent.copy(alpha = 0.18f) else Color(0xFF1A1A1A))
-                            .clickable { onPick(iconOption) }
-                    ) {
-                        Icon(
-                            imageVector        = iconOption.toIcon(),
-                            contentDescription = iconOption.name,
-                            tint               = if (isSelected) accent else Color(0xFF888888),
-                            modifier           = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 3.dp)
+                        .width(18.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(accent)
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun NavButton(
-    icon: ImageVector,
-    label: String,
-    isActive: Boolean,
-    accent: Color,
-    iconInactive: Color,
-    isHorizontal: Boolean = false,
-    onClick: () -> Unit
-) {
-    val isDayMode = LocalDayMode.current
-    val activeIconColor = if (isDayMode) Color(0xFF111111) else Color.White
-    val activeBg = if (isDayMode) Color(0xFF000000).copy(alpha = 0.08f) else Color.White.copy(alpha = 0.06f)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .then(
-                if (isHorizontal) Modifier.fillMaxHeight().width(SLOT_SIZE)
-                else              Modifier.fillMaxWidth().height(SLOT_SIZE)
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            containerColor = AaPanelHigh
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (pinned) "Rimuovi dai fissati" else "Fissa", color = AaTextPrimary) },
+                leadingIcon = { Icon(Icons.Default.PushPin, null, tint = accent) },
+                onClick = { menuOpen = false; onTogglePin() }
             )
-            .background(if (isActive) activeBg else Color.Transparent)
-            .clickable(onClick = onClick)
-    ) {
-        Icon(
-            imageVector        = icon,
-            contentDescription = label,
-            tint               = if (isActive) activeIconColor else iconInactive,
-            modifier           = Modifier.size(ICON_SIZE)
-        )
+            DropdownMenuItem(
+                text = { Text("Sostituisci app", color = AaTextPrimary) },
+                leadingIcon = { Icon(Icons.Default.SwapHoriz, null, tint = accent) },
+                onClick = { menuOpen = false; onReplace() }
+            )
+        }
     }
 }
 

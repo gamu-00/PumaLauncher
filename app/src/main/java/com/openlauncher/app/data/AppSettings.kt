@@ -62,10 +62,26 @@ data class WidgetConfig(
     val enabled: Boolean = true
 )
 
+data class ThemeColorPreset(
+    val name: String,
+    val hex: String,
+    val color: Color
+)
+
+val THEME_COLOR_PRESETS = listOf(
+    ThemeColorPreset("Blu Performance", "#2979FF", Color(0xFF2979FF)),
+    ThemeColorPreset("Ciano Ghiaccio",  "#00E5FF", Color(0xFF00E5FF)),
+    ThemeColorPreset("Verde Smeraldo",  "#00E676", Color(0xFF00E676)),
+    ThemeColorPreset("Ambra Mini AA",   "#FF8F00", Color(0xFFFF8F00)),
+    ThemeColorPreset("Rosso Racing",    "#FF1744", Color(0xFFFF1744)),
+    ThemeColorPreset("Bianco Titanio",  "#E0E0E0", Color(0xFFE0E0E0))
+)
+
 data class AppSettings(
     val vehicleName: String = "MY CAR",
-    val accentColor: Int = Color.White.toArgb(),
-    val backgroundColor: Int = Color.Black.toArgb(),
+    val accentColorHex: String = "#2979FF",
+    val accentColor: Int = Color(0xFF2979FF).toArgb(),
+    val backgroundColor: Int = Color(0xFF0A0B0E).toArgb(),
     val fontColor: Int = Color.White.toArgb(),
     val wallpaperUri: String = "",
     val fontBold: Boolean = false,
@@ -73,7 +89,7 @@ data class AppSettings(
     val uiScale: Float = 1.0f,
     val clockStyle: ClockStyle = ClockStyle.DIGITAL,
     val unitSystem: UnitSystem = UnitSystem.METRIC,
-    val appFont: AppFont = AppFont.JETBRAINS_MONO,
+    val appFont: AppFont = AppFont.SYSTEM,
     val showWeather: Boolean = true,
     val showClock: Boolean = true,
     val showTelemetry: Boolean = true,
@@ -103,8 +119,30 @@ data class AppSettings(
     val vitalsAsBars: Boolean = false,
     val speedometerDigitalOnly: Boolean = false,
     val gradientDirection: GradientDirection = GradientDirection.DIAGONAL,
-    val useCustomBackgroundColor: Boolean = false
+    val useCustomBackgroundColor: Boolean = false,
+    val coldBootAutoLaunch: Boolean = false,
+    val coldBootDelaySeconds: Int = 4,
+    // Nav Rail: pinned apps (persisted), recent apps launched from launcher/drawer
+    val pinnedApps: List<String> = emptyList(),
+    val recentApps: List<String> = emptyList(),
+    val pinnedInitialized: Boolean = false,
+    // App Drawer: hidden packages
+    val hiddenPackages: List<String> = emptyList(),
+    val showHiddenApps: Boolean = false,
+    // Native Navigator preferences
+    val avoidTolls: Boolean = false,
+    val voiceGuidanceEnabled: Boolean = true
 )
+
+fun AppSettings.resolvedAccentColor(): Color =
+    runCatching { Color(android.graphics.Color.parseColor(accentColorHex)) }
+        .getOrElse { Color(0xFF2979FF) }
+
+const val RAIL_SLOTS = 4
+
+/** Nav Rail content: pinned apps first, then recents without duplicates, capped at [RAIL_SLOTS]. */
+fun AppSettings.railPackages(): List<String> =
+    (pinnedApps + recentApps).distinct().take(RAIL_SLOTS)
 
 fun defaultShortcuts() = listOf(
     ShortcutConfig(label = "Radio", isDefault = true, defaultIcon = DefaultShortcutIcon.RADIO),
