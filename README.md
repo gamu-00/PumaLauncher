@@ -1,6 +1,8 @@
 # PumaLauncher
 
-<img width="1376" height="768" alt="PumaLauncher_app" src="https://github.com/user-attachments/assets/b2542a72-9668-418e-a032-3f8b9c7bb702" />
+<img width="1376" height="768" alt="Puma_Launcher_app" src="https://github.com/user-attachments/assets/fac2cba2-39ba-49c1-94f2-cab7480796a9" />
+
+
 
 
 **An automotive-first Android launcher designed for landscape head units and AI Boxes.**
