@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">¡LISTO PARA CONDUCIR!</string>
     <string name="onboarding_ready_desc">Todo está configurado. Puedes establecer Puma Launcher como app de inicio predeterminada para que se abra automáticamente al arrancar.</string>
     <string name="onboarding_set_default">ESTABLECER PREDETERMINADA</string>
+    <string name="youtube_loading_stream">Cargando vídeo...</string>
+    <string name="youtube_video_unplayable">Vídeo no reproducible</string>
+    <string name="youtube_back_to_youtube">Volver a YouTube</string>
 </resources>

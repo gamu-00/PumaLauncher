@@ -41,3 +41,5 @@ Thumbs.db
 .kotlin/
 
 backups/
+
+*.p12

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.openlauncher.app.R
+import com.openlauncher.app.mediastation.YouTubeStreamExtractor
 import com.openlauncher.app.mediastation.data.EpisodeItem
 import com.openlauncher.app.mediastation.data.MediaPosterItem
 import com.openlauncher.app.mediastation.data.MediaStationRepository
@@ -70,18 +71,31 @@ data class MoviesUiState(
         get() = resolvedStreams.getOrNull(currentStreamIndex)
 }
 
+data class YouTubeUiState(
+    val isExtracting: Boolean = false,
+    val activeStream: PlayableStream? = null,
+    val activeVideoUrl: String? = null,
+    val noticeMessage: String? = null,
+    val noticeId: Long = 0L
+)
+
 class MediaStationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val storage = MediaStationStorage(application.applicationContext)
     private val repository = MediaStationRepository(application.applicationContext, storage)
+    private val youTubeExtractor = YouTubeStreamExtractor(repository.client)
 
     private val _uiState = MutableStateFlow(MoviesUiState())
     val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()
+
+    private val _youTubeState = MutableStateFlow(YouTubeUiState())
+    val youTubeState: StateFlow<YouTubeUiState> = _youTubeState.asStateFlow()
 
     private val backStack = ArrayDeque<MoviesScreen>()
     private var searchJob: Job? = null
     private var episodesJob: Job? = null
     private var resolveJob: Job? = null
+    private var youTubeExtractJob: Job? = null
 
     init {
         observeCacheAndSettings()
@@ -553,6 +567,9 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                 searchError = null,
                 isLoadingEpisodes = false,
                 episodesError = null,
+                activeItem = null,
+                activeVideoId = null,
+                activePlayerTitle = "",
                 resolvedStreams = emptyList(),
                 currentStreamIndex = 0,
                 isResolvingStreams = false,
@@ -579,6 +596,9 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
             resolveJob?.cancel()
             _uiState.update {
                 it.copy(
+                    activeItem = null,
+                    activeVideoId = null,
+                    activePlayerTitle = "",
                     resolvedStreams = emptyList(),
                     currentStreamIndex = 0,
                     isResolvingStreams = false,
@@ -591,10 +611,83 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
         return true
     }
 
+    fun playYouTubeVideo(youtubeUrl: String) {
+        val cleanUrl = youtubeUrl.trim()
+        if (cleanUrl.isEmpty()) return
+
+        youTubeExtractJob?.cancel()
+        _youTubeState.update {
+            it.copy(
+                isExtracting = true,
+                activeStream = null,
+                activeVideoUrl = cleanUrl,
+                noticeMessage = null
+            )
+        }
+
+        youTubeExtractJob = viewModelScope.launch {
+            val result = youTubeExtractor.extract720pStream(cleanUrl)
+            result.onSuccess { stream ->
+                _youTubeState.update {
+                    it.copy(
+                        isExtracting = false,
+                        activeStream = stream,
+                        noticeMessage = null
+                    )
+                }
+            }.onFailure {
+                showUnplayableYouTubeNotice()
+            }
+        }
+    }
+
+    fun closeYouTubePlayer() {
+        youTubeExtractJob?.cancel()
+        _youTubeState.update {
+            it.copy(
+                isExtracting = false,
+                activeStream = null,
+                activeVideoUrl = null
+            )
+        }
+    }
+
+    fun onYouTubePlaybackError() {
+        youTubeExtractJob?.cancel()
+        showUnplayableYouTubeNotice()
+    }
+
+    fun dismissYouTubeNotice() {
+        _youTubeState.update {
+            it.copy(noticeMessage = null)
+        }
+    }
+
+    fun resetYouTubeState() {
+        youTubeExtractJob?.cancel()
+        _youTubeState.value = YouTubeUiState()
+    }
+
+    private fun showUnplayableYouTubeNotice() {
+        val msg = AppLanguageManager.localizedString(
+            getApplication(),
+            R.string.youtube_video_unplayable
+        )
+        _youTubeState.update {
+            it.copy(
+                isExtracting = false,
+                activeStream = null,
+                noticeMessage = msg,
+                noticeId = System.currentTimeMillis()
+            )
+        }
+    }
+
     override fun onCleared() {
         searchJob?.cancel()
         episodesJob?.cancel()
         resolveJob?.cancel()
+        youTubeExtractJob?.cancel()
         super.onCleared()
     }
 }

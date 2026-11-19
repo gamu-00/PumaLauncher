@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">BEREIT FÜR DIE FAHRT!</string>
     <string name="onboarding_ready_desc">Alles ist eingerichtet. Du kannst Puma Launcher als Standard-Startbildschirm festlegen, damit er bei jedem Fahrzeugstart automatisch geöffnet wird.</string>
     <string name="onboarding_set_default">ALS STANDARD FESTLEGEN</string>
+    <string name="youtube_loading_stream">Video wird geladen...</string>
+    <string name="youtube_video_unplayable">Video nicht abspielbar</string>
+    <string name="youtube_back_to_youtube">Zurück zu YouTube</string>
 </resources>

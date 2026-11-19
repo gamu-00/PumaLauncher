@@ -75,12 +75,19 @@ fun MediaStationCard(
                     viewModel = mediaStationViewModel,
                     isCompactHeight = isCompactHeight,
                     isHomeVisible = isHomeVisible,
-                    onClose = { onStateChange(MediaStationState.IDLE) }
+                    onClose = {
+                        mediaStationViewModel.resetToCatalog()
+                        onStateChange(MediaStationState.IDLE)
+                    }
                 )
                 MediaStationState.YOUTUBE -> YouTubeView(
+                    viewModel = mediaStationViewModel,
                     isCompactHeight = isCompactHeight,
                     isHomeVisible = isHomeVisible,
-                    onClose = { onStateChange(MediaStationState.IDLE) }
+                    onClose = {
+                        mediaStationViewModel.resetYouTubeState()
+                        onStateChange(MediaStationState.IDLE)
+                    }
                 )
             }
         }

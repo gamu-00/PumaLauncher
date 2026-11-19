@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.openlauncher.app.BuildConfig
 import com.openlauncher.app.R
 import com.openlauncher.app.service.MediaNotificationListenerService
 import com.openlauncher.app.ui.theme.LocalCockpitColors
@@ -127,10 +130,9 @@ fun OnboardingScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
+                    Image(
+                        painter = painterResource(R.drawable.ic_puma_logo),
                         contentDescription = null,
-                        tint = accent,
                         modifier = Modifier.size(44.dp)
                     )
                     Spacer(Modifier.height(8.dp))
@@ -159,7 +161,7 @@ fun OnboardingScreen(
                 }
 
                 Text(
-                    text = "v0.0.5",
+                    text = "v${BuildConfig.VERSION_NAME}",
                     color = colors.textSecondary.copy(alpha = 0.6f),
                     fontSize = 9.sp,
                     letterSpacing = 1.sp

@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">PRONTO PER PARTIRE!</string>
     <string name="onboarding_ready_desc">È tutto pronto. Puoi impostare Puma Launcher come app Home predefinita per avviarlo automaticamente all\'accensione dell\'auto.</string>
     <string name="onboarding_set_default">IMPOSTA COME PREDEFINITO</string>
+    <string name="youtube_loading_stream">Caricamento video...</string>
+    <string name="youtube_video_unplayable">Video non riproducibile</string>
+    <string name="youtube_back_to_youtube">Torna a YouTube</string>
 </resources>

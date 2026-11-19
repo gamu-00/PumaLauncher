@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">READY FOR THE ROAD!</string>
     <string name="onboarding_ready_desc">You are all set up and ready to go. You can set Puma Launcher as your default home app so it launches automatically whenever you start your vehicle.</string>
     <string name="onboarding_set_default">SET AS DEFAULT</string>
+    <string name="youtube_loading_stream">Loading video...</string>
+    <string name="youtube_video_unplayable">Video non riproducibile</string>
+    <string name="youtube_back_to_youtube">Torna a YouTube</string>
 </resources>

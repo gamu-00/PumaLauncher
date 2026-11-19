@@ -1,32 +1,13 @@
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.security.KeyFactory
-import java.security.KeyStore
-import java.security.cert.CertificateFactory
-import java.security.spec.PKCS8EncodedKeySpec
+import java.util.Properties
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val testkeyPemFile = file("signing/testkey.x509.pem")
-val testkeyPk8File = file("signing/testkey.pk8")
-val testkeyStoreFile = file("signing/testkey.p12")
-
-if (testkeyPemFile.exists() && testkeyPk8File.exists()) {
-    val cert = FileInputStream(testkeyPemFile).use { fis ->
-        CertificateFactory.getInstance("X.509").generateCertificate(fis)
-    }
-    val privateKey = KeyFactory.getInstance("RSA")
-        .generatePrivate(PKCS8EncodedKeySpec(testkeyPk8File.readBytes()))
-    val ks = KeyStore.getInstance("PKCS12").apply {
-        load(null, null)
-        setKeyEntry("testkey", privateKey, "android".toCharArray(), arrayOf(cert))
-    }
-    FileOutputStream(testkeyStoreFile).use { fos ->
-        ks.store(fos, "android".toCharArray())
-    }
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
 android {
@@ -39,25 +20,32 @@ android {
         applicationId  = "com.pumalauncher.app"
         minSdk         = 29
         targetSdk      = 33
-        versionCode    = 6
-        versionName    = "0.0.5"
+        versionCode    = 1
+        versionName    = "0.1-beta"
+    }
+
+    base {
+        archivesName.set("PumaLauncher-v${defaultConfig.versionName}")
     }
 
     signingConfigs {
-        create("testkey") {
-            storeFile     = testkeyStoreFile
-            storePassword = "android"
-            keyAlias      = "testkey"
-            keyPassword   = "android"
+        create("release") {
+            if (keystorePropsFile.exists()) {
+                storeFile     = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias      = keystoreProps.getProperty("keyAlias")
+                keyPassword   = keystoreProps.getProperty("keyPassword")
+            } else {
+                initWith(getByName("debug"))
+            }
         }
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("testkey")
-        }
         release {
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -66,12 +54,14 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -107,6 +97,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")

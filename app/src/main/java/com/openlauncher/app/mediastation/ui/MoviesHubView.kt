@@ -112,6 +112,12 @@ internal fun MoviesHubView(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.resetToCatalog()
+        }
+    }
+
     BackHandler(enabled = isHomeVisible && state.screen != MoviesScreen.CATALOG) {
         viewModel.navigateBack(onClose)
     }

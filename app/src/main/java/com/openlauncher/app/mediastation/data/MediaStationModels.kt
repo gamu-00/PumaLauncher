@@ -1,23 +1,25 @@
 package com.openlauncher.app.mediastation.data
 
+import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
 
 /**
  * Unified UI model for movies, series, and "Continue Watching" items.
  */
+@Keep
 data class MediaPosterItem(
-    val id: String,
-    val type: String, // "movie" or "series"
-    val title: String,
-    val posterUrl: String? = null,
-    val year: String? = null,
-    val description: String? = null,
-    val videoId: String = id,
-    val season: Int? = null,
-    val episode: Int? = null,
-    val timeOffsetMs: Long = 0L,
-    val durationMs: Long = 0L,
-    val lastWatched: String? = null
+    @SerializedName("id") val id: String,
+    @SerializedName("type") val type: String, // "movie" or "series"
+    @SerializedName("title") val title: String,
+    @SerializedName("posterUrl") val posterUrl: String? = null,
+    @SerializedName("year") val year: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("videoId") val videoId: String = id,
+    @SerializedName("season") val season: Int? = null,
+    @SerializedName("episode") val episode: Int? = null,
+    @SerializedName("timeOffsetMs") val timeOffsetMs: Long = 0L,
+    @SerializedName("durationMs") val durationMs: Long = 0L,
+    @SerializedName("lastWatched") val lastWatched: String? = null
 ) {
     val progressFraction: Float
         get() = if (durationMs > 0L) {
@@ -33,26 +35,30 @@ data class MediaPosterItem(
 /**
  * Single episode entry for a TV series.
  */
+@Keep
 data class EpisodeItem(
-    val videoId: String,
-    val season: Int,
-    val episode: Int,
-    val title: String,
-    val thumbnailUrl: String? = null,
-    val overview: String? = null,
-    val released: String? = null
+    @SerializedName("videoId") val videoId: String,
+    @SerializedName("season") val season: Int,
+    @SerializedName("episode") val episode: Int,
+    @SerializedName("title") val title: String,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
+    @SerializedName("overview") val overview: String? = null,
+    @SerializedName("released") val released: String? = null
 )
 
 /**
  * Resolved, filtered, and ranked stream ready for Media3 ExoPlayer.
  */
+@Keep
 data class PlayableStream(
-    val url: String,
-    val name: String,
-    val title: String,
-    val headers: Map<String, String>,
-    val score: Int,
-    val languageTag: String? = null
+    @SerializedName("url") val url: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("headers") val headers: Map<String, String>,
+    @SerializedName("score") val score: Int,
+    @SerializedName("languageTag") val languageTag: String? = null,
+    @SerializedName("qualityBadge") val qualityBadge: String? = null,
+    @SerializedName("audioUrl") val audioUrl: String? = null
 ) {
     val displayName: String
         get() = listOf(name, title)
@@ -64,100 +70,113 @@ data class PlayableStream(
 
 // ── Cinemeta DTOs ─────────────────────────────────────────────────────────────
 
+@Keep
 data class CinemetaCatalogResponse(
-    val metas: List<CinemetaMetaDto>? = null
+    @SerializedName("metas") val metas: List<CinemetaMetaDto>? = null
 )
 
+@Keep
 data class CinemetaMetaDto(
-    val id: String? = null,
-    val type: String? = null,
-    val name: String? = null,
-    val poster: String? = null,
-    val releaseInfo: String? = null,
-    val year: String? = null,
-    val description: String? = null
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("poster") val poster: String? = null,
+    @SerializedName("releaseInfo") val releaseInfo: String? = null,
+    @SerializedName("year") val year: String? = null,
+    @SerializedName("description") val description: String? = null
 )
 
+@Keep
 data class CinemetaMetaResponse(
-    val meta: CinemetaSeriesMetaDto? = null
+    @SerializedName("meta") val meta: CinemetaSeriesMetaDto? = null
 )
 
+@Keep
 data class CinemetaSeriesMetaDto(
-    val id: String? = null,
-    val name: String? = null,
-    val poster: String? = null,
-    val videos: List<CinemetaVideoDto>? = null
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("poster") val poster: String? = null,
+    @SerializedName("videos") val videos: List<CinemetaVideoDto>? = null
 )
 
+@Keep
 data class CinemetaVideoDto(
-    val id: String? = null,
-    val name: String? = null,
-    val title: String? = null,
-    val season: Int? = null,
-    val episode: Int? = null,
-    val number: Int? = null,
-    val thumbnail: String? = null,
-    val overview: String? = null,
-    val released: String? = null
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("season") val season: Int? = null,
+    @SerializedName("episode") val episode: Int? = null,
+    @SerializedName("number") val number: Int? = null,
+    @SerializedName("thumbnail") val thumbnail: String? = null,
+    @SerializedName("overview") val overview: String? = null,
+    @SerializedName("released") val released: String? = null
 )
 
 // ── Stremio Datastore API DTOs ────────────────────────────────────────────────
 
+@Keep
 data class StremioDatastoreGetRequest(
-    val authKey: String,
-    val collection: String = "libraryItem",
-    val all: Boolean = true
+    @SerializedName("authKey") val authKey: String,
+    @SerializedName("collection") val collection: String = "libraryItem",
+    @SerializedName("all") val all: Boolean = true
 )
 
+@Keep
 data class StremioApiErrorDto(
-    val message: String? = null,
-    val code: Int? = null
+    @SerializedName("message") val message: String? = null,
+    @SerializedName("code") val code: Int? = null
 )
 
+@Keep
 data class StremioLibraryItemDto(
     @SerializedName("_id") val id: String? = null,
-    val name: String? = null,
-    val type: String? = null,
-    val poster: String? = null,
-    val year: String? = null,
-    val removed: Boolean? = null,
-    val temp: Boolean? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("poster") val poster: String? = null,
+    @SerializedName("year") val year: String? = null,
+    @SerializedName("removed") val removed: Boolean? = null,
+    @SerializedName("temp") val temp: Boolean? = null,
     @SerializedName("_ctime") val ctime: String? = null,
     @SerializedName("_mtime") val mtime: String? = null,
-    val state: StremioLibraryStateDto? = null
+    @SerializedName("state") val state: StremioLibraryStateDto? = null
 )
 
+@Keep
 data class StremioLibraryStateDto(
-    val lastWatched: String? = null,
-    val timeWatched: Long? = null,
-    val timeOffset: Long? = null,
-    val overallTimeWatched: Long? = null,
-    val timesWatched: Int? = null,
-    val flaggedWatched: Int? = null,
-    val duration: Long? = null,
+    @SerializedName("lastWatched") val lastWatched: String? = null,
+    @SerializedName("timeWatched") val timeWatched: Long? = null,
+    @SerializedName("timeOffset") val timeOffset: Long? = null,
+    @SerializedName("overallTimeWatched") val overallTimeWatched: Long? = null,
+    @SerializedName("timesWatched") val timesWatched: Int? = null,
+    @SerializedName("flaggedWatched") val flaggedWatched: Int? = null,
+    @SerializedName("duration") val duration: Long? = null,
     @SerializedName("video_id") val videoId: String? = null,
-    val watched: String? = null
+    @SerializedName("watched") val watched: String? = null
 )
 
 // ── Stremio Addon Stream Protocol DTOs ────────────────────────────────────────
 
+@Keep
 data class StremioStreamResponse(
-    val streams: List<StremioStreamDto>? = null
+    @SerializedName("streams") val streams: List<StremioStreamDto>? = null
 )
 
+@Keep
 data class StremioStreamDto(
-    val url: String? = null,
-    val name: String? = null,
-    val title: String? = null,
-    val description: String? = null,
-    val behaviorHints: StremioBehaviorHintsDto? = null
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("behaviorHints") val behaviorHints: StremioBehaviorHintsDto? = null
 )
 
+@Keep
 data class StremioBehaviorHintsDto(
-    val proxyHeaders: StremioProxyHeadersDto? = null,
-    val notWebReady: Boolean? = null
+    @SerializedName("proxyHeaders") val proxyHeaders: StremioProxyHeadersDto? = null,
+    @SerializedName("notWebReady") val notWebReady: Boolean? = null
 )
 
+@Keep
 data class StremioProxyHeadersDto(
-    val request: Map<String, String>? = null
+    @SerializedName("request") val request: Map<String, String>? = null
 )

@@ -66,6 +66,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.common.VideoSize
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.openlauncher.app.R
@@ -100,6 +102,7 @@ internal fun MediaPlayerView(
     streamError: String?,
     isCompactHeight: Boolean = false,
     isHomeVisible: Boolean = true,
+    isYouTubeMode: Boolean = false,
     onCycleStream: () -> Unit,
     onStreamError: () -> Unit,
     onRetryResolve: () -> Unit,
@@ -124,11 +127,17 @@ internal fun MediaPlayerView(
 
     val latestOnStreamError by rememberUpdatedState(onStreamError)
     val latestOnSyncProgress by rememberUpdatedState(onSyncProgress)
+    val latestIsHomeVisible by rememberUpdatedState(isHomeVisible)
 
     var overlayVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
+    var videoAspectRatio by remember(streams) { mutableFloatStateOf(16f / 9f) }
+    var shouldPlay by remember(streams) { mutableStateOf(true) }
+    var isLifecycleResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
     var currentPositionMs by remember { mutableLongStateOf(resumeOffsetMs) }
     var totalDurationMs by remember { mutableLongStateOf(0L) }
     var pendingSeekMs by remember { mutableLongStateOf(resumeOffsetMs) }
@@ -144,9 +153,43 @@ internal fun MediaPlayerView(
         preferredAudioLanguageCodes(AppLanguageManager.getSavedLanguage(context))
     }
 
+    val playerAudioAttributes = remember {
+        AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        isLifecycleResumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isLifecycleResumed = true
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY -> {
+                    isLifecycleResumed = false
+                    shouldPlay = false
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(isHomeVisible) {
+        if (!isHomeVisible) {
+            shouldPlay = false
+        }
+    }
+
     val hasStream = streamUrl != null
-    val exoPlayer = remember(context, hasStream) {
-        if (!hasStream) {
+    val isPlayerActive = hasStream && streamError == null && isHomeVisible && isLifecycleResumed
+    val exoPlayer = remember(context, isPlayerActive) {
+        if (!isPlayerActive) {
             null
         } else {
             val renderersFactory = DefaultRenderersFactory(context)
@@ -161,18 +204,14 @@ internal fun MediaPlayerView(
                 .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                 .setConnectTimeoutMs(20_000)
                 .setReadTimeoutMs(30_000)
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build()
             ExoPlayer.Builder(context, renderersFactory)
-                .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ false)
+                .setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                 .setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(defaultHttpFactory))
                 .build()
                 .apply {
-                    setAudioAttributes(audioAttributes, /* handleAudioFocus= */ false)
+                    setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                     videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
                     trackSelectionParameters = trackSelectionParameters
                         .buildUpon()
@@ -199,25 +238,31 @@ internal fun MediaPlayerView(
         context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     }
 
-    val audioFocusRequest = remember(exoPlayer) {
-        val audioAttributes = PlatformAudioAttributes.Builder()
+    val audioFocusRequest = remember(exoPlayer, audioManager, playerAudioAttributes) {
+        val platformAttributes = PlatformAudioAttributes.Builder()
             .setUsage(PlatformAudioAttributes.USAGE_MEDIA)
             .setContentType(PlatformAudioAttributes.CONTENT_TYPE_MOVIE)
             .build()
-        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(audioAttributes)
+        lateinit var focusRequest: AudioFocusRequest
+        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(platformAttributes)
             .setOnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS,
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        shouldPlay = false
                         val player = exoPlayer
-                        if (player != null && (player.isPlaying || player.playWhenReady)) {
+                        if (player != null) {
+                            player.playWhenReady = false
                             player.pause()
+                            player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                         }
+                        audioManager?.abandonAudioFocusRequest(focusRequest)
                     }
                 }
             }
             .build()
+        focusRequest
     }
 
     val requestAudioFocus = remember(audioManager, audioFocusRequest) {
@@ -226,6 +271,16 @@ internal fun MediaPlayerView(
 
     val abandonAudioFocus = remember(audioManager, audioFocusRequest) {
         { audioManager?.abandonAudioFocusRequest(audioFocusRequest) }
+    }
+
+    val pauseAndAbandonFocus: (ExoPlayer?) -> Unit = { player ->
+        shouldPlay = false
+        if (player != null) {
+            player.playWhenReady = false
+            player.pause()
+            player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
+        }
+        abandonAudioFocus()
     }
 
     val latestOverlayVisible by rememberUpdatedState(overlayVisible)
@@ -283,8 +338,16 @@ internal fun MediaPlayerView(
             .setConnectTimeoutMs(20_000)
             .setReadTimeoutMs(30_000)
             .setDefaultRequestProperties(customHeaders)
-        val mediaSource = DefaultMediaSourceFactory(httpFactory)
-            .createMediaSource(MediaItem.fromUri(resolvedUrl))
+        val sourceFactory = DefaultMediaSourceFactory(httpFactory)
+        val audioUrl = stream.audioUrl?.takeIf { it.isNotBlank() }
+        val mediaSource = if (audioUrl != null) {
+            MergingMediaSource(
+                sourceFactory.createMediaSource(MediaItem.fromUri(resolvedUrl)),
+                sourceFactory.createMediaSource(MediaItem.fromUri(audioUrl))
+            )
+        } else {
+            sourceFactory.createMediaSource(MediaItem.fromUri(resolvedUrl))
+        }
 
         player.trackSelectionParameters = player.trackSelectionParameters
             .buildUpon()
@@ -296,8 +359,14 @@ internal fun MediaPlayerView(
             player.seekTo(targetSeek)
         }
         player.prepare()
-        requestAudioFocus()
-        player.playWhenReady = true
+        if (shouldPlay && latestIsHomeVisible && isLifecycleResumed) {
+            requestAudioFocus()
+            player.playWhenReady = true
+        } else {
+            player.playWhenReady = false
+            player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
+            abandonAudioFocus()
+        }
     }
 
     // Attach Player.Listener, AnalyticsListener, and PlayerView binding; manage strict release on dispose.
@@ -305,6 +374,9 @@ internal fun MediaPlayerView(
         val player = exoPlayer
         if (player == null) {
             playerView.player = null
+            isPlaying = false
+            isBuffering = false
+            abandonAudioFocus()
             onDispose {
                 playerView.player = null
                 abandonAudioFocus()
@@ -312,6 +384,12 @@ internal fun MediaPlayerView(
         } else {
             playerView.player = player
             val listener = object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (videoSize.width > 0 && videoSize.height > 0) {
+                        videoAspectRatio = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                    }
+                }
+
                 override fun onTracksChanged(tracks: Tracks) {
                     val activeAppLang = AppLanguageManager.getSavedLanguage(context)
                     val preferredShortTag = soberAudioBadge(activeAppLang)
@@ -409,19 +487,24 @@ internal fun MediaPlayerView(
                 }
 
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                    if (playWhenReady) {
+                    if (playWhenReady && shouldPlay && latestIsHomeVisible && isLifecycleResumed) {
                         requestAudioFocus()
                     } else {
+                        if (playWhenReady) {
+                            player.playWhenReady = false
+                        }
+                        player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                         abandonAudioFocus()
                     }
                 }
 
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
-                    if (playing) {
+                    if (playing && shouldPlay && latestIsHomeVisible && isLifecycleResumed) {
                         requestAudioFocus()
                     } else {
-                        if (!player.playWhenReady) {
+                        if (!player.playWhenReady || !shouldPlay || !latestIsHomeVisible || !isLifecycleResumed) {
+                            player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                             abandonAudioFocus()
                         }
                         if (player.playbackState != Player.STATE_IDLE) {
@@ -477,10 +560,13 @@ internal fun MediaPlayerView(
                     if (failedStreamKey != key) {
                         failedStreamKey = key
                         isBuffering = false
-                        if (selectedStreamIndex + 1 < streams.size) {
+                        abandonAudioFocus()
+                        if (selectedStreamIndex + 1 < streams.size && shouldPlay && latestIsHomeVisible && isLifecycleResumed) {
                             selectedStreamIndex += 1
                         } else {
+                            shouldPlay = false
                             player.playWhenReady = false
+                            player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                             abandonAudioFocus()
                             latestOnStreamError()
                         }
@@ -530,9 +616,9 @@ internal fun MediaPlayerView(
                 if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
                     val pos = player.currentPosition.coerceAtLeast(0L)
                     val dur = player.duration.takeIf { it > 0L } ?: 0L
-                    player.pause()
-                    abandonAudioFocus()
+                    pauseAndAbandonFocus(player)
                     if (pos > 0L) {
+                        pendingSeekMs = pos
                         latestOnSyncProgress(pos, dur)
                     }
                 }
@@ -545,10 +631,15 @@ internal fun MediaPlayerView(
                 player.removeListener(listener)
                 playerView.player = null
                 player.playWhenReady = false
+                player.pause()
+                player.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                 abandonAudioFocus()
+                isPlaying = false
+                isBuffering = false
                 val finalPos = player.currentPosition.coerceAtLeast(0L)
                 val finalDur = player.duration.takeIf { it > 0L } ?: 0L
                 if (finalPos > 0L) {
+                    pendingSeekMs = finalPos
                     latestOnSyncProgress(finalPos, finalDur)
                 }
                 player.release()
@@ -561,10 +652,15 @@ internal fun MediaPlayerView(
         interactionTick++
     }
 
-    BackHandler(enabled = isHomeVisible && (showAudioSelector || showSourceSelector)) {
-        showAudioSelector = false
-        showSourceSelector = false
-        bumpOverlay()
+    BackHandler(enabled = isHomeVisible && (isYouTubeMode || showAudioSelector || showSourceSelector)) {
+        if (showAudioSelector || showSourceSelector) {
+            showAudioSelector = false
+            showSourceSelector = false
+            bumpOverlay()
+        } else {
+            pauseAndAbandonFocus(exoPlayer)
+            onBack()
+        }
     }
 
     Box(
@@ -583,24 +679,17 @@ internal fun MediaPlayerView(
             }
     ) {
         if (currentStream != null && exoPlayer != null && streamError == null) {
-            BoxWithConstraints(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                val containerRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else (16f / 9f)
-                val videoModifier = if (containerRatio > (16f / 9f)) {
-                    Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true)
-                } else {
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f, matchHeightConstraintsFirst = false)
-                }
                 AndroidView(
-                    modifier = videoModifier,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(videoAspectRatio.coerceAtLeast(0.1f))
+                        .background(Color.Black),
                     factory = {
                         (playerView.parent as? ViewGroup)?.removeView(playerView)
                         playerView
@@ -611,7 +700,6 @@ internal fun MediaPlayerView(
                 )
             }
         }
-
         // Loading indicator while resolving streams or buffering.
         if ((isResolvingStreams || isBuffering) && streamError == null) {
             Box(
@@ -681,8 +769,7 @@ internal fun MediaPlayerView(
                         }
                         Button(
                             onClick = {
-                                exoPlayer?.pause()
-                                abandonAudioFocus()
+                                pauseAndAbandonFocus(exoPlayer)
                                 onBack()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AaPanelHigh)
@@ -714,7 +801,7 @@ internal fun MediaPlayerView(
                         )
                     )
             ) {
-                // Top Overlay Bar: Back, Title + Source, "Sorgente X/Y", Close "✕"
+                // Top Overlay Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -723,122 +810,182 @@ internal fun MediaPlayerView(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.14f))
-                            .clickable {
-                                bumpOverlay()
-                                exoPlayer?.pause()
-                                abandonAudioFocus()
-                                onBack()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                            tint = AaTextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    if (isYouTubeMode) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color.White.copy(alpha = 0.16f))
+                                .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(18.dp))
+                                .clickable {
+                                    bumpOverlay()
+                                    pauseAndAbandonFocus(exoPlayer)
+                                    onBack()
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.youtube_back_to_youtube),
+                                tint = AaTextPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.youtube_back_to_youtube),
+                                color = AaTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
 
-                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = title,
                             color = AaTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
-                        if (currentStream != null) {
-                            Text(
-                                text = currentStream.displayName,
-                                color = AaTextSecondary,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
 
-                    if (audioTracks.isNotEmpty()) {
-                        val activeAudioBadge = audioTracks.firstOrNull { it.isSelected }?.shortBadge
-                            ?: audioTracks.first().shortBadge
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(AaPanelHigh.copy(alpha = 0.9f))
-                                .border(1.dp, AaBorder, RoundedCornerShape(14.dp))
-                                .clickable {
-                                    bumpOverlay()
-                                    showSourceSelector = false
-                                    showAudioSelector = !showAudioSelector
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Audiotrack,
-                                contentDescription = stringResource(R.string.player_select_audio),
-                                tint = AaAmberAlt,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.player_audio_badge, activeAudioBadge),
-                                color = AaTextPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    if (streams.isNotEmpty()) {
+                        val badgeText = currentStream?.qualityBadge
+                            ?.takeIf { it.isNotBlank() }
+                            ?: currentStream?.name?.takeIf { it.isNotBlank() }
+                            ?: "720p"
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(AaPanelHigh.copy(alpha = 0.9f))
-                                .border(1.dp, AaBorder, RoundedCornerShape(14.dp))
-                                .clickable {
-                                    bumpOverlay()
-                                    showAudioSelector = false
-                                    showSourceSelector = !showSourceSelector
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AaAmberAlt.copy(alpha = 0.22f))
+                                .border(1.dp, AaAmberAlt, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 9.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = stringResource(R.string.player_source_counter, selectedStreamIndex + 1, streams.size),
+                                text = badgeText,
                                 color = AaAmberAlt,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1
                             )
                         }
-                    }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.14f))
+                                .clickable {
+                                    bumpOverlay()
+                                    pauseAndAbandonFocus(exoPlayer)
+                                    onBack()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back),
+                                tint = AaTextPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
 
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.14f))
-                            .clickable {
-                                exoPlayer?.pause()
-                                abandonAudioFocus()
-                                onClose()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "\u2715",
-                            color = AaTextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title,
+                                color = AaTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (currentStream != null) {
+                                Text(
+                                    text = currentStream.displayName,
+                                    color = AaTextSecondary,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        if (audioTracks.isNotEmpty()) {
+                            val activeAudioBadge = audioTracks.firstOrNull { it.isSelected }?.shortBadge
+                                ?: audioTracks.first().shortBadge
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AaPanelHigh.copy(alpha = 0.9f))
+                                    .border(1.dp, AaBorder, RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        bumpOverlay()
+                                        showSourceSelector = false
+                                        showAudioSelector = !showAudioSelector
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Audiotrack,
+                                    contentDescription = stringResource(R.string.player_select_audio),
+                                    tint = AaAmberAlt,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.player_audio_badge, activeAudioBadge),
+                                    color = AaTextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        if (streams.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AaPanelHigh.copy(alpha = 0.9f))
+                                    .border(1.dp, AaBorder, RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        bumpOverlay()
+                                        showAudioSelector = false
+                                        showSourceSelector = !showSourceSelector
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.player_source_counter, selectedStreamIndex + 1, streams.size),
+                                    color = AaAmberAlt,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.14f))
+                                .clickable {
+                                    pauseAndAbandonFocus(exoPlayer)
+                                    onClose()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "\u2715",
+                                color = AaTextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
                     }
                 }
 
@@ -868,9 +1015,10 @@ internal fun MediaPlayerView(
                                 .clickable {
                                     bumpOverlay()
                                     if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
-                                        exoPlayer.pause()
-                                        abandonAudioFocus()
+                                        pauseAndAbandonFocus(exoPlayer)
                                     } else {
+                                        shouldPlay = true
+                                        exoPlayer.setAudioAttributes(playerAudioAttributes, /* handleAudioFocus= */ false)
                                         requestAudioFocus()
                                         exoPlayer.play()
                                     }

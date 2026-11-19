@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openlauncher.app.BuildConfig
 import com.openlauncher.app.R
 import com.openlauncher.app.data.AppFont
 import com.openlauncher.app.data.AppSettings
@@ -867,7 +868,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(32.dp))
 
             Text(
-                text          = "${stringResource(R.string.app_name)}  ·  v0.0.5",
+                text          = "${stringResource(R.string.app_name)}  ·  v${BuildConfig.VERSION_NAME}",
                 color         = colors.textSecondary.copy(alpha = 0.7f),
                 fontSize      = 10.sp,
                 letterSpacing = 1.sp,

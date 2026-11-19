@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
 class MediaStationRepository(
     private val appContext: Context,
     private val storage: MediaStationStorage,
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    internal val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)

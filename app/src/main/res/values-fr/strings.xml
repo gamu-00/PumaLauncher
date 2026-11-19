@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">PRÊT POUR LA ROUTE !</string>
     <string name="onboarding_ready_desc">Tout est prêt. Vous pouvez définir Puma Launcher comme écran d\'accueil par défaut pour un lancement automatique au démarrage.</string>
     <string name="onboarding_set_default">DÉFINIR PAR DÉFAUT</string>
+    <string name="youtube_loading_stream">Chargement de la vidéo...</string>
+    <string name="youtube_video_unplayable">Vidéo non lisible</string>
+    <string name="youtube_back_to_youtube">Retour à YouTube</string>
 </resources>

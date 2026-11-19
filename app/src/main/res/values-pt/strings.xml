@@ -309,4 +309,7 @@
     <string name="onboarding_ready_title">PRONTO PARA A ESTRADA!</string>
     <string name="onboarding_ready_desc">Tudo configurado. Você pode definir o Puma Launcher como tela inicial padrão para abrir automaticamente ao ligar o carro.</string>
     <string name="onboarding_set_default">DEFINIR COMO PADRÃO</string>
+    <string name="youtube_loading_stream">Carregando vídeo...</string>
+    <string name="youtube_video_unplayable">Vídeo não reproduzível</string>
+    <string name="youtube_back_to_youtube">Voltar ao YouTube</string>
 </resources>

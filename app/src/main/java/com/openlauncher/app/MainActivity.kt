@@ -207,6 +207,7 @@ class MainActivity : ComponentActivity() {
                                 vm.navigate(NavDestination.HOME)
                                 vm.setMediaStationState(MediaStationState.IDLE)
                                 mediaStationVm.resetToCatalog()
+                                mediaStationVm.resetYouTubeState()
                             }
                         }
 
@@ -225,6 +226,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 mediaStationState != MediaStationState.IDLE -> {
                                     mediaStationVm.resetToCatalog()
+                                    mediaStationVm.resetYouTubeState()
                                     vm.setMediaStationState(MediaStationState.IDLE)
                                 }
                                 isMapSearchOpen -> {
@@ -317,7 +319,15 @@ class MainActivity : ComponentActivity() {
                                         nowPlaying                = nowPlaying,
                                         mediaStationState         = mediaStationState,
                                         mediaStationViewModel     = mediaStationVm,
-                                        onMediaStationStateChange = { next -> vm.setMediaStationState(next) },
+                                        onMediaStationStateChange = { next ->
+                                            if (next != MediaStationState.MOVIES) {
+                                                mediaStationVm.resetToCatalog()
+                                            }
+                                            if (next != MediaStationState.YOUTUBE) {
+                                                mediaStationVm.resetYouTubeState()
+                                            }
+                                            vm.setMediaStationState(next)
+                                        },
                                         homePressTrigger          = homePressTrigger,
                                         closeMapSearchTrigger     = closeMapSearchTrigger,
                                         isHomeVisible             = nav == NavDestination.HOME,
