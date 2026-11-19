@@ -1,6 +1,312 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Open Launcher</string>
-    <string name="settings_label">Open Launcher Settings</string>
-    <string name="media_label">Open Launcher Media</string>
+    <!-- App & Manifest -->
+    <string name="app_name">Puma Launcher</string>
+    <string name="media_label">Puma Launcher Media</string>
+
+    <!-- Common Actions -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">Back</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_search">Search</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_play">Play</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_reset">Reset</string>
+    <string name="common_unknown">Unknown</string>
+    <string name="common_selected">Selected</string>
+
+    <!-- Media Station Card & YouTube -->
+    <string name="card_movies_tv">Movies &amp; TV Shows</string>
+    <string name="card_youtube">YouTube</string>
+    <string name="youtube_topbar_title">YOUTUBE</string>
+
+    <!-- Movies Hub -->
+    <string name="movies_title_upper">MOVIES &amp; TV SHOWS</string>
+    <string name="movies_episodes_upper">EPISODES</string>
+    <string name="movies_voice_prompt">Search movies or TV shows</string>
+    <string name="movies_voice_unavailable">Voice search is not available on this device</string>
+    <string name="movies_voice_search">Voice search</string>
+    <string name="movies_search_placeholder">Search movies or shows...</string>
+    <string name="movies_search_hint">Type or use the microphone to search</string>
+    <string name="movies_search_no_results">No results for \"%1$s\"</string>
+    <string name="movies_tab_resume">Resume</string>
+    <string name="movies_tab_movies">Movies</string>
+    <string name="movies_tab_series">Series</string>
+    <string name="movies_continue_watching">Continue watching</string>
+    <string name="movies_section_movies">Movies</string>
+    <string name="movies_section_series">TV Shows</string>
+    <string name="movies_stremio_prompt">Enter your Stremio authKey to see your in-progress titles.</string>
+    <string name="movies_open_settings">Open Settings</string>
+    <string name="movies_nothing_to_resume">Nothing to resume</string>
+    <string name="movies_no_titles">No titles available</string>
+    <string name="movies_badge_movie">Movie</string>
+    <string name="movies_badge_series">Series</string>
+    <string name="movies_settings_auth_label">Stremio authKey</string>
+    <string name="movies_settings_auth_placeholder">Paste Stremio account authKey</string>
+    <string name="movies_settings_addon_label">Addon Resolver URL</string>
+    <string name="movies_settings_addon_placeholder">https://example-addon.org/manifest.json</string>
+    <string name="movies_settings_addon_hint">Trailing /manifest.json or / are stripped automatically.</string>
+    <string name="movies_no_episodes">No episodes available</string>
+    <string name="movies_season_number">Season %1$d</string>
+    <string name="movies_episode_fallback">Episode %1$d</string>
+    <string name="movies_resume_here">Resume from here</string>
+
+    <!-- Media Player & Stream Resolution -->
+    <string name="player_resolving_streams">Finding sources...</string>
+    <string name="player_error_code">Error code: %1$s</string>
+    <string name="player_switching_source">%1$s — switching source...</string>
+    <string name="player_audio_badge">Audio: %1$s</string>
+    <string name="player_select_audio">Select audio track</string>
+    <string name="player_source_counter">Source %1$d/%2$d</string>
+    <string name="player_select_source">Select source (%1$d)</string>
+    <string name="player_source_fallback">Source %1$d</string>
+    <string name="player_track_label">Track %1$d (%2$s)</string>
+    <string name="player_track_short">Track %1$d</string>
+    <string name="player_active">Active</string>
+    <string name="media_playing">Playing</string>
+    <string name="media_no_streams_found">No streams found in cache</string>
+    <string name="media_all_streams_failed">All available sources failed playback.</string>
+    <string name="media_error_addon_not_configured">Addon Resolver URL not configured</string>
+    <string name="media_error_stremio_api">Stremio API error</string>
+    <string name="media_error_empty_response">Empty response</string>
+    <string name="media_error_search_failed">Search failed</string>
+    <string name="media_error_load_movies">Failed to load movies</string>
+    <string name="media_error_load_series">Failed to load TV shows</string>
+    <string name="media_error_stremio_sync">Stremio sync error</string>
+    <string name="media_error_load_episodes">Unable to load episodes</string>
+    <string name="media_error_resolve_streams">Error resolving sources</string>
+    <string name="media_stream_http_fallback">HTTP Stream</string>
+
+    <!-- Music Widget & Music App Picker -->
+    <string name="music_title">Music</string>
+    <string name="music_idle_subtitle">No track playing</string>
+    <string name="media_previous">Previous</string>
+    <string name="media_next">Next</string>
+    <string name="music_picker_title">Choose music app</string>
+    <string name="music_picker_section_music">MUSIC APPS</string>
+    <string name="music_picker_section_other">OTHER APPS</string>
+
+    <!-- Navigator & Navigation Engine -->
+    <string name="nav_search_content_desc">Search destination</string>
+    <string name="nav_search_placeholder">Search address or destination...</string>
+    <string name="nav_search_close">Close search</string>
+    <string name="nav_avoid_tolls">Avoid tolls</string>
+    <string name="nav_searching">Searching...</string>
+    <string name="nav_start_navigation">Start navigation</string>
+    <string name="nav_no_results">No results found</string>
+    <string name="nav_network_error">Network error</string>
+    <string name="nav_route_error">Unable to calculate route</string>
+    <string name="nav_recenter">Recenter</string>
+    <string name="nav_mute_voice">Mute voice guidance</string>
+    <string name="nav_unmute_voice">Enable voice guidance</string>
+    <string name="nav_end">End</string>
+    <string name="nav_eta_format">ETA %1$s • %2$s</string>
+    <string name="nav_default_location">Location</string>
+    <string name="nav_default_destination">Destination</string>
+    <string name="nav_tts_recalculating">Recalculating route</string>
+    <string name="nav_tts_in_300m">In 300 meters, %1$s</string>
+    <string name="nav_tts_in_50m">In 50 meters, %1$s</string>
+    <string name="nav_maneuver_arrive">You have arrived at your destination</string>
+    <string name="nav_maneuver_depart">Depart and continue on the route</string>
+    <string name="nav_maneuver_depart_street">Proceed on %1$s</string>
+    <string name="nav_maneuver_roundabout">Take the exit at the roundabout</string>
+    <string name="nav_maneuver_roundabout_street">Take the exit at the roundabout onto %1$s</string>
+    <string name="nav_maneuver_uturn">Make a U-turn</string>
+    <string name="nav_maneuver_uturn_street">Make a U-turn onto %1$s</string>
+    <string name="nav_maneuver_sharp_left">Turn sharp left</string>
+    <string name="nav_maneuver_sharp_left_street">Turn sharp left onto %1$s</string>
+    <string name="nav_maneuver_left">Turn left</string>
+    <string name="nav_maneuver_left_street">Turn left onto %1$s</string>
+    <string name="nav_maneuver_slight_left">Keep left</string>
+    <string name="nav_maneuver_slight_left_street">Keep left onto %1$s</string>
+    <string name="nav_maneuver_sharp_right">Turn sharp right</string>
+    <string name="nav_maneuver_sharp_right_street">Turn sharp right onto %1$s</string>
+    <string name="nav_maneuver_right">Turn right</string>
+    <string name="nav_maneuver_right_street">Turn right onto %1$s</string>
+    <string name="nav_maneuver_slight_right">Keep right</string>
+    <string name="nav_maneuver_slight_right_street">Keep right onto %1$s</string>
+    <string name="nav_maneuver_continue">Continue straight</string>
+    <string name="nav_maneuver_continue_street">Continue on %1$s</string>
+    <string name="nav_maneuver_proceed_to">Proceed toward %1$s</string>
+
+    <!-- Sidebar / Dock & Cold Boot -->
+    <string name="sidebar_network">Network</string>
+    <string name="sidebar_gps">GPS</string>
+    <string name="sidebar_app_drawer">App Drawer</string>
+    <string name="nav_settings">Settings</string>
+    <string name="cold_boot_dialog_title">Cold-Boot Settings</string>
+    <string name="cold_boot_auto_launch">Cold-boot auto-launch</string>
+    <string name="cold_boot_auto_launch_desc">Automatically launch Puma Launcher on power-on</string>
+    <string name="cold_boot_delay_dialog">Startup delay (wait for GPS and network)</string>
+    <string name="cold_boot_all_settings">All settings</string>
+    <string name="sidebar_pin">Pin</string>
+    <string name="sidebar_unpin">Unpin</string>
+    <string name="sidebar_replace_app">Replace app</string>
+    <string name="sidebar_decrease">Decrease</string>
+    <string name="sidebar_increase">Increase</string>
+
+    <!-- App Drawer -->
+    <string name="drawer_choose_app">Choose app...</string>
+    <string name="drawer_search_apps">Search among %1$d apps...</string>
+    <string name="drawer_no_apps">No apps found</string>
+    <string name="drawer_hidden_suffix">%1$s (hidden)</string>
+    <string name="drawer_pin_rail">Pin to Nav Rail</string>
+    <string name="drawer_unpin_rail">Remove from Nav Rail</string>
+    <string name="drawer_hide_app">Hide app</string>
+    <string name="drawer_unhide_app">Restore app</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title_upper">SETTINGS</string>
+    <string name="settings_section_language">Language</string>
+    <string name="settings_language_label">Launcher Language</string>
+    <string name="settings_language_desc">Applies to the whole interface and media stream priority</string>
+
+    <string name="settings_section_theme_color">Theme Color</string>
+    <string name="theme_preset_blue">Performance Blue</string>
+    <string name="theme_preset_cyan">Ice Cyan</string>
+    <string name="theme_preset_green">Emerald Green</string>
+    <string name="theme_preset_amber">Mini AA Amber</string>
+    <string name="theme_preset_red">Racing Red</string>
+    <string name="theme_preset_white">Titanium White</string>
+
+    <string name="settings_section_app_drawer">App Drawer</string>
+    <string name="settings_show_hidden_apps">Show hidden apps</string>
+    <string name="settings_hidden_none">No hidden apps (long-press an app in the drawer to hide it)</string>
+    <string name="settings_hidden_count">%1$d hidden apps — enable to show them in the drawer</string>
+    <string name="settings_restore_hidden">Restore all hidden apps (%1$d)</string>
+
+    <string name="settings_section_permissions">Permissions</string>
+    <string name="settings_default_launcher">Set as Default Launcher</string>
+    <string name="settings_default_launcher_active">Active — Puma Launcher is the home app</string>
+    <string name="settings_default_launcher_inactive">Required so the head unit boots into Puma Launcher</string>
+    <string name="settings_notification_access">Notification Access</string>
+    <string name="settings_notification_granted">Granted — media controls active</string>
+    <string name="settings_notification_required">Required for Now Playing widget</string>
+    <string name="settings_location_access">Location Access</string>
+    <string name="settings_location_granted">Granted — GPS navigation active</string>
+    <string name="settings_location_required">Required for GPS navigation</string>
+
+    <string name="settings_section_vehicle">Vehicle</string>
+    <string name="settings_vehicle_name">Vehicle Name</string>
+    <string name="settings_vehicle_placeholder">MY CAR</string>
+
+    <string name="settings_section_nav_rail">Nav Rail</string>
+    <string name="settings_no_pinned">No pinned apps</string>
+    <string name="settings_no_pinned_desc">Long-press an app in the drawer or rail to pin it</string>
+    <string name="settings_pinned_slot">Pinned %1$d</string>
+
+    <string name="settings_section_autostart">Auto Start</string>
+    <string name="settings_startup_delay">Startup delay</string>
+    <string name="settings_startup_delay_desc">Wait for GPS and network before launching</string>
+
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_display_mode">Display Mode</string>
+    <string name="settings_mode_dark_desc">Always dark</string>
+    <string name="settings_mode_light_desc">Always light</string>
+    <string name="settings_mode_auto_desc">Sunrise / sunset</string>
+    <string name="settings_mode_system_desc">Follows system theme</string>
+    <string name="settings_mode_dark">Dark</string>
+    <string name="settings_mode_light">Light</string>
+    <string name="settings_mode_sunset">Sunset</string>
+    <string name="settings_mode_system">System</string>
+
+    <string name="settings_background">Background</string>
+    <string name="settings_bg_gradient">Gradient</string>
+    <string name="settings_bg_solid">Solid color</string>
+    <string name="settings_default_upper">DEFAULT</string>
+    <string name="settings_font_color">Font Color</string>
+    <string name="settings_font_color_desc">Custom text color for the active theme</string>
+    <string name="settings_use_gradient">Use Gradient</string>
+    <string name="settings_use_gradient_desc">Blend two colors as background</string>
+    <string name="settings_gradient_direction">Gradient Direction</string>
+    <string name="settings_grad_top_bottom_desc">Top to Bottom</string>
+    <string name="settings_grad_left_right_desc">Left to Right</string>
+    <string name="settings_grad_diagonal_desc">Diagonal (Linear)</string>
+    <string name="settings_grad_radial_desc">Radial (Circular)</string>
+    <string name="settings_grad_vertical">Vertical</string>
+    <string name="settings_grad_horizontal">Horizontal</string>
+    <string name="settings_grad_diagonal">Diagonal</string>
+    <string name="settings_grad_radial">Radial</string>
+    <string name="settings_set_wallpaper">Set Wallpaper</string>
+    <string name="settings_wallpaper_active">Custom wallpaper active</string>
+    <string name="settings_wallpaper_choose">Choose image from gallery</string>
+    <string name="settings_wallpaper_dim">Wallpaper Dim</string>
+    <string name="settings_remove_wallpaper">REMOVE WALLPAPER</string>
+
+    <string name="settings_section_typography">Typography</string>
+    <string name="settings_font">Font</string>
+    <string name="settings_font_system">System</string>
+    <string name="settings_bold_font">Bold Font</string>
+    <string name="settings_bold_font_desc">Heavier weight across all text</string>
+    <string name="settings_text_scale">Text Scale</string>
+    <string name="settings_ui_scale">UI Scale</string>
+    <string name="settings_ui_scale_desc">%1$d%% — scales all elements</string>
+
+    <string name="settings_section_gps">GPS &amp; Calibration</string>
+    <string name="settings_reset_agps">Reset A-GPS Assistance Data</string>
+    <string name="settings_reset_agps_desc">Forces cold start to download fresh satellite orbits</string>
+    <string name="settings_agps_clearing">Clearing A-GPS cache...</string>
+    <string name="settings_agps_success">Cold start forced — go outdoors for a fresh satellite lock (2–3 min)</string>
+    <string name="settings_agps_unsupported">Not supported by this device\'s GPS driver — no data was cleared</string>
+
+    <string name="settings_section_maintenance">Maintenance</string>
+    <string name="settings_reset_defaults">Reset to Defaults</string>
+    <string name="settings_reset_dialog_title">Reset Settings</string>
+    <string name="settings_reset_dialog_message">Are you sure you want to reset all settings to default? This cannot be undone.</string>
+    <string name="settings_dialog_accent_color">Accent Color</string>
+    <string name="settings_dialog_bg_color">Background Color</string>
+    <string name="settings_dialog_gradient_end">Gradient End Color</string>
+    <string name="settings_dialog_font_color">Font Color</string>
+
+    <!-- Color Picker -->
+    <string name="color_picker_presets">Presets</string>
+    <string name="color_picker_custom">Custom</string>
+    <string name="color_picker_hue">Hue</string>
+    <string name="color_picker_saturation">Saturation</string>
+    <string name="color_picker_brightness">Brightness</string>
+
+    <!-- Onboarding Screen -->
+    <string name="onboarding_subtitle">Designed for the dashboard</string>
+    <string name="onboarding_step_intro">Introduction</string>
+    <string name="onboarding_step_location">Location Services</string>
+    <string name="onboarding_step_media">Media Integration</string>
+    <string name="onboarding_step_ready">Ready to Go</string>
+    <string name="onboarding_back">BACK</string>
+    <string name="onboarding_get_started">GET STARTED</string>
+    <string name="onboarding_continue">CONTINUE</string>
+    <string name="onboarding_skip">SKIP FOR NOW</string>
+    <string name="onboarding_finish">FINISH SETUP</string>
+    <string name="onboarding_intro_title">WELCOME TO PUMA LAUNCHER</string>
+    <string name="onboarding_intro_desc">A clean, modern landscape dashboard designed to be the ultimate companion for your car\'s screen.</string>
+    <string name="onboarding_bullet_nav_title">Turn-by-Turn Navigation</string>
+    <string name="onboarding_bullet_nav_desc">Built-in MapLibre navigation with voice guidance, route calculation, and toll avoidance.</string>
+    <string name="onboarding_bullet_dash_title">Customizable Automotive Dashboard</string>
+    <string name="onboarding_bullet_dash_desc">Tailor accent colors, wallpapers, background gradients, and typography for your vehicle display.</string>
+    <string name="onboarding_bullet_media_title">Live Media &amp; Entertainment</string>
+    <string name="onboarding_bullet_media_desc">Control any active music player right from the dashboard and access Movies, Series, and YouTube.</string>
+    <string name="onboarding_location_title">NAVIGATION &amp; LOCATION</string>
+    <string name="onboarding_location_desc">To power turn-by-turn navigation and real-time GPS speed on your dashboard, Puma Launcher requires location access.</string>
+    <string name="onboarding_perm_granted">Permission Granted</string>
+    <string name="onboarding_perm_required">Permission Required</string>
+    <string name="onboarding_location_active">GPS navigation is active and ready.</string>
+    <string name="onboarding_location_disabled">Location access is currently disabled.</string>
+    <string name="onboarding_grant_access">GRANT ACCESS</string>
+    <string name="onboarding_media_title">MEDIA INTEGRATION</string>
+    <string name="onboarding_media_desc">To display live album art, track metadata, and playback controls for any active music app, Puma Launcher listens to active media sessions.</string>
+    <string name="onboarding_media_granted">Notification Access Granted</string>
+    <string name="onboarding_media_required">Notification Access Required</string>
+    <string name="onboarding_media_active">Music player widget is connected.</string>
+    <string name="onboarding_media_disabled">Music player widget will stay idle until enabled.</string>
+    <string name="onboarding_enable_media">ENABLE MEDIA LISTENER</string>
+    <string name="onboarding_ready_title">READY FOR THE ROAD!</string>
+    <string name="onboarding_ready_desc">You are all set up and ready to go. You can set Puma Launcher as your default home app so it launches automatically whenever you start your vehicle.</string>
+    <string name="onboarding_set_default">SET AS DEFAULT</string>
 </resources>

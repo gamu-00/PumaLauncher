@@ -1,9 +1,13 @@
 package com.openlauncher.app.mediastation.data
 
+import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.openlauncher.app.R
+import com.openlauncher.app.util.AppLanguageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -24,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class MediaStationRepository(
+    private val appContext: Context,
     private val storage: MediaStationStorage,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -42,14 +47,57 @@ class MediaStationRepository(
         private const val DEFAULT_MOBILE_UA =
             "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-        private val EXPLICIT_ITA_REGEX = Regex("(?i)\\b(ita|italian|italiano)\\b")
-        private val MULTI_DUAL_REGEX = Regex("(?i)\\b(multi|dual)\\b")
-        private val EXCLUDED_LANG_REGEX =
-            Regex("(?i)\\b(rus|russian|mvo|ukr|hin|hindi|tamil|kor|chi|jpn)\\b")
-        private val UNSUPPORTED_STREAM_REGEX =
-            Regex("(?i)\\b(4k|2160p|av1|dts|truehd|remux)\\b")
+        private const val MAX_STREAM_SIZE_GB = 8.5
+        private const val PREFERRED_STREAM_SIZE_GB = 4.5
+        private val UNSUPPORTED_STREAM_KEYWORDS = listOf(
+            "4k",
+            "2160p",
+            "av1",
+            "remux",
+            "bdmv",
+            "10bit",
+            "10-bit"
+        )
         private val UNCACHED_DEBRID_REGEX =
             Regex("(?i)\\[(rd|ad|pm|dl)\\s+download\\]")
+        private val CACHED_DEBRID_REGEX =
+            Regex("(?i)\\[(rd|ad|pm|dl)\\+\\]")
+        private val FILE_SIZE_REGEX =
+            Regex("(?i)(\\d+(?:[.,]\\d+)?)\\s*(tb|tib|gb|gib|mb|mib)\\b")
+        private val UNICODE_FLAG_REGEX =
+            Regex("(?:\\uD83C[\\uDDE6-\\uDDFF]){2}")
+
+        private val LANG_FLAGS = mapOf(
+            "it" to setOf("\uD83C\uDDEE\uD83C\uDDF9"),
+            "de" to setOf("\uD83C\uDDE9\uD83C\uDDEA"),
+            "fr" to setOf("\uD83C\uDDEB\uD83C\uDDF7"),
+            "es" to setOf("\uD83C\uDDEA\uD83C\uDDF8", "\uD83C\uDDF2\uD83C\uDDFD"),
+            "pt" to setOf("\uD83C\uDDF5\uD83C\uDDF9", "\uD83C\uDDE7\uD83C\uDDF7"),
+            "en" to setOf("\uD83C\uDDEC\uD83C\uDDE7", "\uD83C\uDDFA\uD83C\uDDF8")
+        )
+
+        private val LANG_TAG_REGEX = mapOf(
+            "it" to Regex("(?<![\\p{L}\\p{N}])(ita|italian|italiano)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "de" to Regex("(?<![\\p{L}\\p{N}])(ger|deu|german|deutsch)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "fr" to Regex("(?<![\\p{L}\\p{N}])(fre|fra|french|francais|français|vostfr|truefrench)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "es" to Regex("(?<![\\p{L}\\p{N}])(esp|spa|spanish|espanol|español|latino|castellano)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "pt" to Regex("(?<![\\p{L}\\p{N}])(por|portuguese|portugues|português|dublado)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "en" to Regex("(?<![\\p{L}\\p{N}])(eng|english)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+        )
+
+        private val MULTI_LANG_REGEX = Regex(
+            "(?<![\\p{L}\\p{N}])(multi|dual(?:\\s+audio)?)(?![\\p{L}\\p{N}])",
+            RegexOption.IGNORE_CASE
+        )
+
+        private val SOBER_LANG_TAGS = mapOf(
+            "it" to "ITA",
+            "de" to "GER",
+            "fr" to "FRA",
+            "es" to "ESP",
+            "pt" to "POR",
+            "en" to "ENG"
+        )
     }
 
     suspend fun fetchContinueWatching(authKey: String): List<MediaPosterItem> = withContext(Dispatchers.IO) {
@@ -62,7 +110,7 @@ class MediaStationRepository(
 
         if (root.has("error") && !root.get("error").isJsonNull) {
             val err = gson.fromJson(root.get("error"), StremioApiErrorDto::class.java)
-            throw IOException(err?.message ?: "Errore Stremio API")
+            throw IOException(err?.message ?: AppLanguageManager.localizedString(appContext, R.string.media_error_stremio_api))
         }
 
         val resultArray = root.getAsJsonArray("result") ?: JsonArray()
@@ -240,7 +288,8 @@ class MediaStationRepository(
             val seriesResult = seriesDeferred.await()
 
             if (moviesResult.isFailure && seriesResult.isFailure) {
-                throw moviesResult.exceptionOrNull() ?: IOException("Ricerca fallita")
+                throw moviesResult.exceptionOrNull()
+                    ?: IOException(AppLanguageManager.localizedString(appContext, R.string.media_error_search_failed))
             }
 
             val movies = moviesResult.getOrDefault(emptyList())
@@ -272,7 +321,7 @@ class MediaStationRepository(
             val videoId = video.id?.takeIf { it.isNotBlank() } ?: "$imdbId:$season:$episode"
             val title = video.name?.takeIf { it.isNotBlank() }
                 ?: video.title?.takeIf { it.isNotBlank() }
-                ?: "Episodio $episode"
+                ?: AppLanguageManager.localizedString(appContext, R.string.movies_episode_fallback, episode)
 
             EpisodeItem(
                 videoId = videoId,
@@ -293,48 +342,52 @@ class MediaStationRepository(
     ): List<PlayableStream> = withContext(Dispatchers.IO) {
         val base = normalizeAddonBaseUrl(addonBaseUrl)
         if (base.isBlank()) {
-            throw IllegalStateException("URL Addon Resolver non configurato")
+            throw IllegalStateException(
+                AppLanguageManager.localizedString(appContext, R.string.media_error_addon_not_configured)
+            )
         }
 
+        val preferredLang = AppLanguageManager.getSavedLanguage(appContext)
         val streamUrl = "$base/stream/$type/$videoId.json"
         val body = executeGet(streamUrl)
         val parsed = gson.fromJson(body, StremioStreamResponse::class.java)
         val rawStreams = parsed?.streams.orEmpty()
 
-        rawStreams.mapNotNull { dto ->
+        data class RankedStream(
+            val tier: Int,
+            val exactLangRank: Int,
+            val codecRank: Int,
+            val sizeRank: Int,
+            val originalIndex: Int,
+            val stream: PlayableStream
+        )
+
+        val candidates = mutableListOf<RankedStream>()
+
+        // Filter unsupported heavy/10-bit streams and rank survivors by user language + cache + x264/size priority.
+        rawStreams.forEachIndexed { index, dto ->
             val url = dto.url?.trim().orEmpty()
             if (!url.startsWith("http://", ignoreCase = true) &&
                 !url.startsWith("https://", ignoreCase = true)
             ) {
-                return@mapNotNull null
+                return@forEachIndexed
             }
 
-            val name = dto.name.orEmpty().trim()
-            val title = dto.title.orEmpty().trim()
-            val description = dto.description.orEmpty().trim()
-            val rawText = "$name $title $description"
-            val metadataLower = rawText.lowercase(Locale.ROOT)
+            val rawName = dto.name.orEmpty().trim()
+            val rawTitle = dto.title.orEmpty().trim()
+            val rawDescription = dto.description.orEmpty().trim()
+            val fullText = "$rawName $rawTitle $rawDescription"
+            val metadataLower = fullText.lowercase(Locale.ROOT)
 
-            // Discard streams that are not already cached on Debrid.
-            if (UNCACHED_DEBRID_REGEX.containsMatchIn(rawText) || rawText.contains("⏳")) {
-                return@mapNotNull null
+            // Discard 4K/2160p/AV1/REMUX/BDMV and 10-bit streams unsupported by the emulator / SM6225 decoder.
+            if (UNSUPPORTED_STREAM_KEYWORDS.any { metadataLower.contains(it) }) {
+                return@forEachIndexed
             }
 
-            // SM6225 hardware decoder cannot reliably handle 4K/2160p, AV1, DTS, TrueHD or REMUX.
-            if (metadataLower.contains("4k") ||
-                metadataLower.contains("2160p") ||
-                UNSUPPORTED_STREAM_REGEX.containsMatchIn(metadataLower)
-            ) {
-                return@mapNotNull null
-            }
-
-            // Strictly require an explicit Italian marker (\bita\b, italian, italiano, 🇮🇹);
-            // completely exclude any non-Italian stream so it is never auto-played.
-            val hasExplicitIta = EXPLICIT_ITA_REGEX.containsMatchIn(rawText) || rawText.contains("🇮🇹")
-            if (!hasExplicitIta ||
-                EXCLUDED_LANG_REGEX.containsMatchIn(rawText) && !hasExplicitIta
-            ) {
-                return@mapNotNull null
+            // Discard streams larger than 8.5 GB.
+            val fileSizeGb = extractFileSizeGb(fullText)
+            if (fileSizeGb != null && fileSizeGb > MAX_STREAM_SIZE_GB) {
+                return@forEachIndexed
             }
 
             val headers = LinkedHashMap<String, String>()
@@ -343,48 +396,145 @@ class MediaStationRepository(
                     headers[k] = v
                 }
             }
-            if (headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
-                headers["User-Agent"] = DEFAULT_MOBILE_UA
+
+            val detectedLangs = detectStreamLanguages(fullText)
+            val isMulti = MULTI_LANG_REGEX.containsMatchIn(fullText)
+            val isUncachedDownload =
+                UNCACHED_DEBRID_REGEX.containsMatchIn(fullText) || fullText.contains("⏳")
+            val isCachedInstant =
+                !isUncachedDownload &&
+                    (CACHED_DEBRID_REGEX.containsMatchIn(fullText) ||
+                        fullText.contains("⚡") ||
+                        !fullText.contains("download", ignoreCase = true))
+
+            val englishFlags = LANG_FLAGS["en"].orEmpty()
+            val hasOtherFlag = UNICODE_FLAG_REGEX.findAll(fullText).any { it.value !in englishFlags }
+            val isPreferred = if (preferredLang == "en") {
+                val otherLangs = detectedLangs - "en"
+                ("en" in detectedLangs) || isMulti || (otherLangs.isEmpty() && !hasOtherFlag)
+            } else {
+                (preferredLang in detectedLangs) || isMulti
             }
 
-            val score = computeStreamScore(
+            val exactLangRank = if (preferredLang == "en") {
+                0
+            } else if (preferredLang in detectedLangs) {
+                0
+            } else {
+                1
+            }
+
+            val tier = when {
+                isPreferred && isCachedInstant -> 1
+                isPreferred && !isCachedInstant -> 2
+                !isPreferred && isCachedInstant -> 3
+                else -> 4
+            }
+
+            val soberTag = when {
+                preferredLang in detectedLangs -> SOBER_LANG_TAGS[preferredLang]
+                isMulti || detectedLangs.size > 1 -> "MULTI"
+                detectedLangs.size == 1 -> SOBER_LANG_TAGS[detectedLangs.first()]
+                else -> null
+            }
+
+            val cleanName = stripFlagsAndNormalize(rawName, " ")
+            val detailSource = rawTitle.ifEmpty { rawDescription }
+            val cleanTitle = stripFlagsAndNormalize(detailSource, " • ")
+
+            val isX265OrHevc = metadataLower.contains("x265") ||
+                metadataLower.contains("hevc") ||
+                metadataLower.contains("h265") ||
+                metadataLower.contains("h.265")
+            val isX264OrH264 = metadataLower.contains("x264") ||
+                metadataLower.contains("h264") ||
+                metadataLower.contains("h.264") ||
+                metadataLower.contains("avc")
+            val codecRank = when {
+                isX264OrH264 && !isX265OrHevc -> 0
+                isX265OrHevc -> 2
+                else -> 1
+            }
+            val sizeRank = if (fileSizeGb == null || fileSizeGb <= PREFERRED_STREAM_SIZE_GB) 0 else 1
+
+            val tierBaseScore = (5 - tier) * 10_000
+            val playable = PlayableStream(
                 url = url,
-                rawText = rawText,
-                lowerText = metadataLower
+                name = cleanName,
+                title = cleanTitle,
+                headers = headers,
+                score = tierBaseScore - (exactLangRank * 3_000) - (codecRank * 2_000) - (sizeRank * 1_000) - index,
+                languageTag = soberTag
             )
 
-            PlayableStream(
-                url = url,
-                name = name,
-                title = title.ifEmpty { description },
-                headers = headers,
-                score = score
+            candidates.add(
+                RankedStream(
+                    tier = tier,
+                    exactLangRank = exactLangRank,
+                    codecRank = codecRank,
+                    sizeRank = sizeRank,
+                    originalIndex = index,
+                    stream = playable
+                )
             )
-        }.sortedByDescending { it.score }
+        }
+
+        val sortedStreams = candidates
+            .sortedWith(
+                compareBy<RankedStream> { it.tier }
+                    .thenBy { it.exactLangRank }
+                    .thenBy { it.codecRank }
+                    .thenBy { it.sizeRank }
+                    .thenBy { it.originalIndex }
+            )
+            .map { it.stream }
+
+        Log.d(
+            "MediaStation",
+            "resolveStreams($type/$videoId, lang=$preferredLang): ricevuti ${rawStreams.size} stream, filtrati ${sortedStreams.size}"
+        )
+        sortedStreams.take(5).forEachIndexed { idx, stream ->
+            Log.d("MediaStation", "Top #${idx + 1} [${stream.languageTag ?: "NONE"}]: ${stream.name} | ${stream.title} | ${stream.url}")
+        }
+
+        sortedStreams
     }
 
-    private fun computeStreamScore(
-        url: String,
-        rawText: String,
-        lowerText: String
-    ): Int {
-        var score = 300
+    private fun detectStreamLanguages(text: String): Set<String> = buildSet {
+        for ((lang, flags) in LANG_FLAGS) {
+            if (flags.any { text.contains(it) }) add(lang)
+        }
+        for ((lang, regex) in LANG_TAG_REGEX) {
+            if (regex.containsMatchIn(text)) add(lang)
+        }
+    }
 
-        if (lowerText.contains("[rd+]") || lowerText.contains("rd+") || rawText.contains("⚡")) {
-            score += 100
-        }
+    private fun stripFlagsAndNormalize(raw: String, lineJoiner: String): String {
+        return raw.lines()
+            .map { line ->
+                UNICODE_FLAG_REGEX.replace(line, "")
+                    .replace(Regex("\\s{2,}"), " ")
+                    .trim()
+                    .trim('|', '•', '/')
+                    .trim()
+            }
+            .filter { it.isNotEmpty() }
+            .joinToString(lineJoiner)
+    }
 
-        when {
-            lowerText.contains("1080p") -> score += 50
-            lowerText.contains("720p") -> score += 30
-            lowerText.contains("480p") -> score += 10
-        }
-        val lowerUrl = url.lowercase(Locale.ROOT)
-        when {
-            lowerUrl.contains(".m3u8") || lowerText.contains(".m3u8") -> score += 20
-            lowerUrl.contains(".mp4") || lowerText.contains(".mp4") -> score += 15
-        }
-        return score
+    private fun extractFileSizeGb(text: String): Double? {
+        return FILE_SIZE_REGEX.findAll(text)
+            .mapNotNull { match ->
+                val rawValue = match.groupValues[1].replace(',', '.').toDoubleOrNull()
+                    ?: return@mapNotNull null
+                when (match.groupValues[2].lowercase(Locale.ROOT)) {
+                    "tb", "tib" -> rawValue * 1024.0
+                    "gb", "gib" -> rawValue
+                    "mb", "mib" -> rawValue / 1024.0
+                    else -> null
+                }
+            }
+            .maxOrNull()
     }
 
     private fun fetchCatalogUrl(url: String, defaultType: String): List<MediaPosterItem> {
@@ -414,7 +564,8 @@ class MediaStationRepository(
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code}: ${response.message}")
             }
-            return response.body?.string() ?: throw IOException("Risposta vuota")
+            return response.body?.string()
+                ?: throw IOException(AppLanguageManager.localizedString(appContext, R.string.media_error_empty_response))
         }
     }
 
@@ -429,7 +580,8 @@ class MediaStationRepository(
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code}: ${response.message}")
             }
-            return response.body?.string() ?: throw IOException("Risposta vuota")
+            return response.body?.string()
+                ?: throw IOException(AppLanguageManager.localizedString(appContext, R.string.media_error_empty_response))
         }
     }
 

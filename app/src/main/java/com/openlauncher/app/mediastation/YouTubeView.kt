@@ -1,10 +1,6 @@
 package com.openlauncher.app.mediastation
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -17,10 +13,51 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
+import com.openlauncher.app.R
 import android.graphics.Color as AColor
 
 private const val YOUTUBE_URL = "https://m.youtube.com"
+
+private const val ANTI_PAUSE_JS = """
+(function() {
+    try {
+        var props = {
+            hidden: false,
+            webkitHidden: false,
+            visibilityState: 'visible',
+            webkitVisibilityState: 'visible'
+        };
+        for (var key in props) {
+            if (Object.prototype.hasOwnProperty.call(props, key)) {
+                (function(propName, propVal) {
+                    try {
+                        Object.defineProperty(document, propName, {
+                            configurable: true,
+                            get: function() { return propVal; }
+                        });
+                    } catch (e) {}
+                })(key, props[key]);
+            }
+        }
+        var blockEvent = function(e) {
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+        };
+        if (!document.__pumaVisibilityPatched) {
+            document.__pumaVisibilityPatched = true;
+            document.addEventListener('visibilitychange', blockEvent, true);
+            document.addEventListener('webkitvisibilitychange', blockEvent, true);
+        }
+        if (!window.__pumaVisibilityPatched) {
+            window.__pumaVisibilityPatched = true;
+            window.addEventListener('visibilitychange', blockEvent, true);
+            window.addEventListener('webkitvisibilitychange', blockEvent, true);
+        }
+    } catch (e) {}
+})();
+"""
 
 /**
  * Vanilla YouTube WebView with a minimal "✕" bar. Fullscreen videos are mounted in an overlay
@@ -29,25 +66,14 @@ private const val YOUTUBE_URL = "https://m.youtube.com"
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun YouTubeView(onClose: () -> Unit) {
+internal fun YouTubeView(
+    isCompactHeight: Boolean = false,
+    isHomeVisible: Boolean = true,
+    onClose: () -> Unit
+) {
     val context = LocalContext.current
     var isFullscreen by remember { mutableStateOf(false) }
     var hideCustomView: (() -> Unit)? by remember { mutableStateOf(null) }
-
-    val audioManager = remember(context) {
-        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-    }
-
-    val audioFocusRequest = remember {
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
-            .build()
-        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(attributes)
-            .setOnAudioFocusChangeListener { /* Keep WebView session active while YouTubeView is open */ }
-            .build()
-    }
 
     val rootContainer = remember(context) {
         FrameLayout(context).apply {
@@ -89,14 +115,27 @@ internal fun YouTubeView(onClose: () -> Unit) {
             }
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    view?.evaluateJavascript(ANTI_PAUSE_JS, null)
+                }
+
+                override fun doUpdateVisitedHistory(
+                    view: WebView?,
+                    url: String?,
+                    isReload: Boolean
+                ) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    view?.evaluateJavascript(ANTI_PAUSE_JS, null)
+                }
+            }
         }
     }
 
-    BackHandler(enabled = isFullscreen) { hideCustomView?.invoke() }
+    BackHandler(enabled = isHomeVisible && isFullscreen) { hideCustomView?.invoke() }
 
     DisposableEffect(Unit) {
-        audioManager?.requestAudioFocus(audioFocusRequest)
-
         var customView: View? = null
         var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
@@ -117,7 +156,6 @@ internal fun YouTubeView(onClose: () -> Unit) {
 
         hideCustomView = ::exitFullscreen
 
-        webView.webViewClient = WebViewClient()
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                 if (view == null) return
@@ -125,7 +163,6 @@ internal fun YouTubeView(onClose: () -> Unit) {
                     callback?.onCustomViewHidden()
                     return
                 }
-                audioManager?.requestAudioFocus(audioFocusRequest)
                 customView = view
                 customViewCallback = callback
 
@@ -192,9 +229,9 @@ internal fun YouTubeView(onClose: () -> Unit) {
         onDispose {
             exitFullscreen()
             hideCustomView = null
-            audioManager?.abandonAudioFocusRequest(audioFocusRequest)
             CookieManager.getInstance().flush()
             webView.stopLoading()
+            webView.webViewClient = WebViewClient()
             webView.webChromeClient = null
             webView.loadUrl("about:blank")
             webView.clearHistory()
@@ -208,7 +245,11 @@ internal fun YouTubeView(onClose: () -> Unit) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (!isFullscreen) {
-            MediaTopBar("YOUTUBE", onClose)
+            MediaTopBar(
+                title = stringResource(R.string.youtube_topbar_title),
+                onClose = onClose,
+                isCompactHeight = isCompactHeight
+            )
         }
 
         AndroidView(
@@ -216,15 +257,7 @@ internal fun YouTubeView(onClose: () -> Unit) {
                 .fillMaxWidth()
                 .weight(1f),
             factory = { rootContainer },
-            update = { container ->
-                container.layoutParams = container.layoutParams?.apply {
-                    width = ViewGroup.LayoutParams.MATCH_PARENT
-                    height = ViewGroup.LayoutParams.MATCH_PARENT
-                } ?: ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            }
+            update = { }
         )
     }
 }

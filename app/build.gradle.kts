@@ -36,7 +36,7 @@ android {
     }
 
     defaultConfig {
-        applicationId  = "com.openlauncher.app"
+        applicationId  = "com.pumalauncher.app"
         minSdk         = 29
         targetSdk      = 33
         versionCode    = 6
@@ -81,6 +81,7 @@ dependencies {
 
     // Core
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
@@ -97,21 +98,15 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.7")
 
-    // Network — weather
-    implementation("com.squareup.retrofit2:retrofit:2.12.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.12.0")
-
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // Media Station: Media3 (ExoPlayer + HLS + UI) and OkHttp (JSON via Gson above)
+    // Media Station: Media3 (ExoPlayer + HLS + UI + FFmpeg audio decoder) and OkHttp (JSON via Gson above)
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Permissions
-    implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")

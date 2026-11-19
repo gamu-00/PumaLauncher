@@ -24,6 +24,8 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.openlauncher.app.R
+import com.openlauncher.app.util.AppLanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -166,22 +168,32 @@ private fun mapValhallaManeuverIcon(type: Int, instruction: String): TurnIconTyp
     }
 }
 
-private fun mapOsrmManeuver(type: String, modifier: String, street: String): Pair<TurnIconType, String> {
-    val intoStreet = if (street.isNotBlank()) " in $street" else ""
+private fun mapOsrmManeuver(
+    context: Context,
+    type: String,
+    modifier: String,
+    street: String
+): Pair<TurnIconType, String> {
+    fun loc(resId: Int, streetResId: Int): String = if (street.isNotBlank()) {
+        AppLanguageManager.localizedString(context, streetResId, street)
+    } else {
+        AppLanguageManager.localizedString(context, resId)
+    }
+
     return when (type.lowercase(Locale.ROOT)) {
-        "arrive" -> TurnIconType.DESTINATION to "Sei arrivato a destinazione"
-        "depart" -> TurnIconType.STRAIGHT to if (street.isNotBlank()) "Procedi su $street" else "Parti e procedi sul percorso"
+        "arrive" -> TurnIconType.DESTINATION to AppLanguageManager.localizedString(context, R.string.nav_maneuver_arrive)
+        "depart" -> TurnIconType.STRAIGHT to loc(R.string.nav_maneuver_depart, R.string.nav_maneuver_depart_street)
         "roundabout", "rotary", "roundabout turn" ->
-            TurnIconType.ROUNDABOUT to "Alla rotonda prendi l'uscita$intoStreet"
+            TurnIconType.ROUNDABOUT to loc(R.string.nav_maneuver_roundabout, R.string.nav_maneuver_roundabout_street)
         else -> when (modifier.lowercase(Locale.ROOT)) {
-            "uturn" -> TurnIconType.UTURN to "Effettua inversione a U$intoStreet"
-            "sharp left" -> TurnIconType.SHARP_LEFT to "Svolta tutto a sinistra$intoStreet"
-            "left" -> TurnIconType.LEFT to "Svolta a sinistra$intoStreet"
-            "slight left" -> TurnIconType.SLIGHT_LEFT to "Tieni la sinistra$intoStreet"
-            "sharp right" -> TurnIconType.SHARP_RIGHT to "Svolta tutto a destra$intoStreet"
-            "right" -> TurnIconType.RIGHT to "Svolta a destra$intoStreet"
-            "slight right" -> TurnIconType.SLIGHT_RIGHT to "Tieni la destra$intoStreet"
-            else -> TurnIconType.STRAIGHT to if (street.isNotBlank()) "Continua su $street" else "Continua dritto"
+            "uturn" -> TurnIconType.UTURN to loc(R.string.nav_maneuver_uturn, R.string.nav_maneuver_uturn_street)
+            "sharp left" -> TurnIconType.SHARP_LEFT to loc(R.string.nav_maneuver_sharp_left, R.string.nav_maneuver_sharp_left_street)
+            "left" -> TurnIconType.LEFT to loc(R.string.nav_maneuver_left, R.string.nav_maneuver_left_street)
+            "slight left" -> TurnIconType.SLIGHT_LEFT to loc(R.string.nav_maneuver_slight_left, R.string.nav_maneuver_slight_left_street)
+            "sharp right" -> TurnIconType.SHARP_RIGHT to loc(R.string.nav_maneuver_sharp_right, R.string.nav_maneuver_sharp_right_street)
+            "right" -> TurnIconType.RIGHT to loc(R.string.nav_maneuver_right, R.string.nav_maneuver_right_street)
+            "slight right" -> TurnIconType.SLIGHT_RIGHT to loc(R.string.nav_maneuver_slight_right, R.string.nav_maneuver_slight_right_street)
+            else -> TurnIconType.STRAIGHT to loc(R.string.nav_maneuver_continue, R.string.nav_maneuver_continue_street)
         }
     }
 }
@@ -285,10 +297,11 @@ class NavigationEngine(context: Context) {
         runCatching {
             tts = TextToSpeech(appContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
-                    val res = tts?.setLanguage(Locale.ITALIAN)
+                    val locale = AppLanguageManager.localeFor(AppLanguageManager.getSavedLanguage(appContext))
+                    val res = tts?.setLanguage(locale)
                     ttsReady = res != TextToSpeech.LANG_MISSING_DATA &&
                         res != TextToSpeech.LANG_NOT_SUPPORTED
-                    Log.d(NAV_TAG, "NavigationEngine TTS inizializzato (italiano=$ttsReady)")
+                    Log.d(NAV_TAG, "NavigationEngine TTS inizializzato (locale=$locale, ready=$ttsReady)")
                 }
             }
         }
@@ -458,15 +471,16 @@ class NavigationEngine(context: Context) {
         searchStatusMessage = null
         Log.d(NAV_TAG, "Avvio ricerca indirizzo per query=\"$trimmed\"")
 
+        val lang = AppLanguageManager.getSavedLanguage(appContext)
         val outcome = withContext(Dispatchers.IO) {
             val encoded = URLEncoder.encode(trimmed, "UTF-8")
-            val photonOutcome = fetchPhotonResults(encoded)
+            val photonOutcome = fetchPhotonResults(encoded, lang)
             if (photonOutcome.places.isNotEmpty()) {
                 Log.d(NAV_TAG, "Photon ha restituito ${photonOutcome.places.size} risultati per \"$trimmed\"")
                 photonOutcome
             } else {
                 Log.d(NAV_TAG, "Photon 0 risultati o errore (networkError=${photonOutcome.networkError}) per \"$trimmed\", eseguo fallback su Nominatim")
-                val nominatimOutcome = fetchNominatimResults(encoded)
+                val nominatimOutcome = fetchNominatimResults(encoded, lang)
                 if (nominatimOutcome.places.isNotEmpty()) {
                     Log.d(NAV_TAG, "Nominatim fallback ha restituito ${nominatimOutcome.places.size} risultati per \"$trimmed\"")
                     nominatimOutcome
@@ -483,8 +497,8 @@ class NavigationEngine(context: Context) {
         isSearching = false
         searchStatusMessage = when {
             outcome.places.isNotEmpty() -> null
-            outcome.networkError -> "Errore rete"
-            else -> "Nessun risultato trovato"
+            outcome.networkError -> AppLanguageManager.localizedString(appContext, R.string.nav_network_error)
+            else -> AppLanguageManager.localizedString(appContext, R.string.nav_no_results)
         }
         if (searchStatusMessage != null) {
             Log.d(NAV_TAG, "Stato finale ricerca \"$trimmed\": $searchStatusMessage")
@@ -498,10 +512,11 @@ class NavigationEngine(context: Context) {
         searchStatusMessage = null
     }
 
-    private fun fetchPhotonResults(encodedQuery: String): GeocodingOutcome {
+    private fun fetchPhotonResults(encodedQuery: String, lang: String): GeocodingOutcome {
         var conn: HttpURLConnection? = null
         return try {
-            val urlStr = "https://photon.komoot.io/api/?q=$encodedQuery&lang=it&limit=5"
+            val langParam = if (lang in setOf("en", "de", "fr", "it")) "&lang=$lang" else ""
+            val urlStr = "https://photon.komoot.io/api/?q=$encodedQuery$langParam&limit=5"
             Log.d(NAV_TAG, "GET Photon: $urlStr")
             conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -545,7 +560,7 @@ class NavigationEngine(context: Context) {
                     rawName.isNotEmpty() -> rawName
                     streetFull.isNotEmpty() -> streetFull
                     city.isNotEmpty() -> city
-                    else -> "Posizione"
+                    else -> AppLanguageManager.localizedString(appContext, R.string.nav_default_location)
                 }
                 val subParts = buildList {
                     if (streetFull.isNotEmpty() && streetFull != primary) add(streetFull)
@@ -571,10 +586,10 @@ class NavigationEngine(context: Context) {
         }
     }
 
-    private fun fetchNominatimResults(encodedQuery: String): GeocodingOutcome {
+    private fun fetchNominatimResults(encodedQuery: String, lang: String): GeocodingOutcome {
         var conn: HttpURLConnection? = null
         return try {
-            val urlStr = "https://nominatim.openstreetmap.org/search?q=$encodedQuery&format=jsonv2&addressdetails=1&limit=5&accept-language=it"
+            val urlStr = "https://nominatim.openstreetmap.org/search?q=$encodedQuery&format=jsonv2&addressdetails=1&limit=5&accept-language=$lang"
             Log.d(NAV_TAG, "GET Nominatim fallback: $urlStr")
             conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -617,7 +632,7 @@ class NavigationEngine(context: Context) {
                     roadFull.isNotEmpty() -> roadFull
                     city.isNotEmpty() -> city
                     displayName.isNotEmpty() -> displayName.substringBefore(",").trim()
-                    else -> "Destinazione"
+                    else -> AppLanguageManager.localizedString(appContext, R.string.nav_default_destination)
                 }
                 val subParts = buildList {
                     if (roadFull.isNotEmpty() && roadFull != primary) add(roadFull)
@@ -693,7 +708,7 @@ class NavigationEngine(context: Context) {
                     speak(firstInstruction)
                 }
             } else {
-                routeError = "Impossibile calcolare il percorso"
+                routeError = AppLanguageManager.localizedString(appContext, R.string.nav_route_error)
                 Log.d(NAV_TAG, "Errore: sia Valhalla che OSRM hanno fallito il calcolo del percorso")
             }
         }
@@ -740,11 +755,19 @@ class NavigationEngine(context: Context) {
                         JSONObject().put("use_tolls", if (avoidTolls) 0.0 else 1.0)
                     )
                 )
+                val valhallaLang = when (AppLanguageManager.getSavedLanguage(appContext)) {
+                    "de" -> "de-DE"
+                    "it" -> "it-IT"
+                    "fr" -> "fr-FR"
+                    "es" -> "es-ES"
+                    "pt" -> "pt-PT"
+                    else -> "en-US"
+                }
                 put(
                     "directions_options",
                     JSONObject()
                         .put("units", "kilometers")
-                        .put("language", "it-IT")
+                        .put("language", valhallaLang)
                 )
             }
 
@@ -917,7 +940,7 @@ class NavigationEngine(context: Context) {
                 val mType = manObj?.optString("type", "continue").orEmpty()
                 val mMod = manObj?.optString("modifier", "straight").orEmpty()
 
-                val (icon, instruction) = mapOsrmManeuver(mType, mMod, street)
+                val (icon, instruction) = mapOsrmManeuver(appContext, mType, mMod, street)
                 val beginIdx = stepIndices[i].coerceIn(0, shapePoints.lastIndex)
                 val endIdx = if (i + 1 < steps.length()) {
                     stepIndices[i + 1].coerceIn(beginIdx, shapePoints.lastIndex)
@@ -943,7 +966,11 @@ class NavigationEngine(context: Context) {
                 maneuvers.add(
                     ValhallaManeuver(
                         type = 4,
-                        instruction = "Procedi verso ${destination.name}",
+                        instruction = AppLanguageManager.localizedString(
+                            appContext,
+                            R.string.nav_maneuver_proceed_to,
+                            destination.name
+                        ),
                         streetName = destination.name,
                         lengthKm = totalKm,
                         timeSec = totalSec,
@@ -1014,7 +1041,7 @@ class NavigationEngine(context: Context) {
         val nowElapsed = SystemClock.elapsedRealtime()
         if (minDistMeters > 45.0 && nowElapsed - lastRouteCalcElapsedMs > 8000L && !isRouting) {
             Log.d(NAV_TAG, "Fuori traccia di ${minDistMeters.roundToInt()}m (> 45m): avvio ricalcolo percorso")
-            speak("Ricalcolo del percorso")
+            speak(AppLanguageManager.localizedString(appContext, R.string.nav_tts_recalculating))
             calculateRoute(route.destination, avoidTolls = avoidTolls, isRecalculation = true)
             return
         }
@@ -1064,18 +1091,23 @@ class NavigationEngine(context: Context) {
         remainingDistanceText = formatDistance(remKm * 1000.0)
         val arrivalDate = Date(System.currentTimeMillis() + (remSec * 1000.0).toLong())
         val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-        etaText = "ETA ${timeFmt.format(arrivalDate)} • $remainingDistanceText"
+        etaText = AppLanguageManager.localizedString(
+            appContext,
+            R.string.nav_eta_format,
+            timeFmt.format(arrivalDate),
+            remainingDistanceText
+        )
 
         // 4. Voice guidance announcements at 300m and 50m
         if (distToTurnM <= 300.0 && distToTurnM > 70.0 && announced300ForManeuver != upcomingManeuverIdx) {
             announced300ForManeuver = upcomingManeuverIdx
-            speak("Tra 300 metri, ${upcomingManeuver.instruction}")
+            speak(AppLanguageManager.localizedString(appContext, R.string.nav_tts_in_300m, upcomingManeuver.instruction))
         } else if (distToTurnM <= 50.0 && announced50ForManeuver != upcomingManeuverIdx) {
             announced50ForManeuver = upcomingManeuverIdx
             if (upcomingManeuver.turnIcon == TurnIconType.DESTINATION || upcomingManeuverIdx == maneuvers.lastIndex) {
-                speak("Sei arrivato a destinazione")
+                speak(AppLanguageManager.localizedString(appContext, R.string.nav_maneuver_arrive))
             } else {
-                speak("Tra 50 metri, ${upcomingManeuver.instruction}")
+                speak(AppLanguageManager.localizedString(appContext, R.string.nav_tts_in_50m, upcomingManeuver.instruction))
             }
         }
 
@@ -1086,8 +1118,9 @@ class NavigationEngine(context: Context) {
     }
 
     private fun formatDistance(meters: Double): String {
+        val locale = AppLanguageManager.localeFor(AppLanguageManager.getSavedLanguage(appContext))
         return if (meters >= 1000.0) {
-            String.format(Locale.ITALIAN, "%.1f km", meters / 1000.0)
+            String.format(locale, "%.1f km", meters / 1000.0)
         } else {
             val rounded = ((meters / 10.0).roundToInt() * 10).coerceAtLeast(10)
             "$rounded m"

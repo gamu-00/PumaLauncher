@@ -1,9 +1,12 @@
 package com.openlauncher.app
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -14,7 +17,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -27,15 +33,34 @@ import com.openlauncher.app.data.DayNightMode
 import com.openlauncher.app.data.GradientDirection
 import com.openlauncher.app.data.railPackages
 import com.openlauncher.app.data.resolvedAccentColor
+import com.openlauncher.app.mediastation.MediaStationState
+import com.openlauncher.app.mediastation.ui.MediaStationViewModel
 import com.openlauncher.app.model.NavDestination
 import com.openlauncher.app.ui.components.Sidebar
 import com.openlauncher.app.ui.screen.*
+import com.openlauncher.app.ui.theme.DarkCockpitPalette
+import com.openlauncher.app.ui.theme.LightCockpitPalette
 import com.openlauncher.app.ui.theme.OpenLauncherTheme
+import com.openlauncher.app.util.AppLanguageManager
 import com.openlauncher.app.viewmodel.LauncherViewModel
 
 class MainActivity : ComponentActivity() {
 
     private val vm: LauncherViewModel by viewModels()
+    private val mediaStationVm: MediaStationViewModel by viewModels()
+    private var homePressTrigger by mutableIntStateOf(0)
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguageManager.wrapContext(newBase))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.hasCategory(Intent.CATEGORY_HOME) || intent.action == Intent.ACTION_MAIN) {
+            homePressTrigger++
+        }
+    }
 
     private val locationPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -62,7 +87,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         configureSystemBars()
 
@@ -94,27 +118,45 @@ class MainActivity : ComponentActivity() {
             val isData         by vm.isData.collectAsStateWithLifecycle()
             val isDayModeVM    by vm.isDayMode.collectAsStateWithLifecycle()
             val systemIsDark   = isSystemInDarkTheme()
-            val isDayMode      = if (settings.dayNightMode == DayNightMode.SYSTEM) !systemIsDark else isDayModeVM
-            val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
-            val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
+            val isLightTheme   = when (settings.dayNightMode) {
+                DayNightMode.DARK   -> false
+                DayNightMode.LIGHT  -> true
+                DayNightMode.AUTO   -> isDayModeVM
+                DayNightMode.SYSTEM -> !systemIsDark
+            }
+            val pickerSlot     by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
 
-            val accent        = settings.resolvedAccentColor()
-            val bg            = if (settings.useCustomBackgroundColor) {
+            val accent = settings.resolvedAccentColor()
+            val basePalette = if (isLightTheme) LightCockpitPalette else DarkCockpitPalette
+            val resolvedCanvasBg = if (settings.useCustomBackgroundColor) {
                 Color(settings.backgroundColor)
             } else {
-                if (isDayMode) Color(0xFFEEEEEE) else com.openlauncher.app.ui.theme.AaBackground
+                basePalette.canvasBackground
             }
-            val textColor     = if (isDayMode) Color(0xFF111111) else Color(settings.fontColor)
+            val resolvedTextPrimary = (if (isLightTheme) settings.customLightFontColor else settings.customDarkFontColor)
+                ?.let { Color(it) }
+                ?: basePalette.textPrimary
+            val cockpitColors = basePalette.copy(
+                canvasBackground = resolvedCanvasBg,
+                textPrimary = resolvedTextPrimary
+            )
             val bgGradientEnd = Color(settings.gradientEndColor)
-            val bgBrush       = if (settings.useCustomBackgroundColor && settings.useGradient) {
-                val colors = listOf(bg, bgGradientEnd)
+            val bgBrush       = if (settings.useGradient) {
+                val colors = listOf(resolvedCanvasBg, bgGradientEnd)
                 when (settings.gradientDirection) {
                     GradientDirection.TOP_TO_BOTTOM -> androidx.compose.ui.graphics.Brush.verticalGradient(colors)
                     GradientDirection.LEFT_TO_RIGHT -> androidx.compose.ui.graphics.Brush.horizontalGradient(colors)
-                    GradientDirection.DIAGONAL -> androidx.compose.ui.graphics.Brush.linearGradient(colors)
-                    GradientDirection.RADIAL -> androidx.compose.ui.graphics.Brush.radialGradient(colors)
+                    GradientDirection.DIAGONAL      -> androidx.compose.ui.graphics.Brush.linearGradient(colors)
+                    GradientDirection.RADIAL        -> androidx.compose.ui.graphics.Brush.radialGradient(colors)
                 }
             } else null
+
+            SideEffect {
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                val lightBars = if (settingsLoaded) isLightTheme else !systemIsDark
+                controller.isAppearanceLightStatusBars = lightBars
+                controller.isAppearanceLightNavigationBars = lightBars
+            }
 
             val baseDensity = LocalDensity.current
             CompositionLocalProvider(
@@ -124,16 +166,22 @@ class MainActivity : ComponentActivity() {
                 )
             ) {
                 if (!settingsLoaded) {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                    val loadingBg = if (systemIsDark) {
+                        DarkCockpitPalette.canvasBackground
+                    } else {
+                        LightCockpitPalette.canvasBackground
+                    }
+                    Box(modifier = Modifier.fillMaxSize().background(loadingBg))
                 } else OpenLauncherTheme(
-                    accent      = accent,
-                    background  = bg,
-                    textColor   = textColor,
-                    fontBold    = settings.fontBold,
-                    textScale   = settings.textScale,
-                    appFont     = settings.appFont,
-                    isDayMode   = isDayMode,
-                    useCustomBg = settings.useCustomBackgroundColor
+                    accent        = accent,
+                    background    = resolvedCanvasBg,
+                    textColor     = resolvedTextPrimary,
+                    fontBold      = settings.fontBold,
+                    textScale     = settings.textScale,
+                    appFont       = settings.appFont,
+                    isDayMode     = isLightTheme,
+                    useCustomBg   = settings.useCustomBackgroundColor,
+                    cockpitColors = cockpitColors
                 ) {
                     if (!settings.onboardingCompleted) {
                         OnboardingScreen(
@@ -145,13 +193,65 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
+                        val mediaStationState by vm.mediaStationState.collectAsStateWithLifecycle()
+                        var isMapSearchOpen by remember { mutableStateOf(false) }
+                        var closeMapSearchTrigger by remember { mutableIntStateOf(0) }
+                        val focusManager = LocalFocusManager.current
+                        val keyboardController = LocalSoftwareKeyboardController.current
+
+                        LaunchedEffect(homePressTrigger) {
+                            if (homePressTrigger > 0) {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                vm.cancelShortcutPicker()
+                                vm.navigate(NavDestination.HOME)
+                                vm.setMediaStationState(MediaStationState.IDLE)
+                                mediaStationVm.resetToCatalog()
+                            }
+                        }
+
+                        LaunchedEffect(nav) {
+                            if (nav != NavDestination.HOME) {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                            }
+                        }
+
+                        BackHandler(enabled = true) {
+                            when {
+                                nav != NavDestination.HOME -> {
+                                    vm.cancelShortcutPicker()
+                                    vm.navigate(NavDestination.HOME)
+                                }
+                                mediaStationState != MediaStationState.IDLE -> {
+                                    mediaStationVm.resetToCatalog()
+                                    vm.setMediaStationState(MediaStationState.IDLE)
+                                }
+                                isMapSearchOpen -> {
+                                    closeMapSearchTrigger++
+                                }
+                                else -> {
+                                    // On root dashboard: intercept Back without calling finish()
+                                }
+                            }
+                        }
+
                         BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .let { m ->
-                                    if (bgBrush != null) m.background(bgBrush) else m.background(bg)
+                                    if (bgBrush != null) m.background(bgBrush) else m.background(cockpitColors.canvasBackground)
                                 }
                         ) {
+                            val isCompactHeight = maxHeight < 520.dp
+                            val aspectRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else 1.77f
+                            val isPortrait = aspectRatio < 1.1f
+                            val dockWidth = when {
+                                isCompactHeight -> (maxWidth * 0.08f).coerceIn(54.dp, 72.dp)
+                                isPortrait      -> (maxWidth * 0.11f).coerceIn(64.dp, 84.dp)
+                                else            -> (maxWidth * 0.075f).coerceIn(72.dp, 96.dp)
+                            }
+
                             if (settings.wallpaperUri.isNotEmpty()) {
                                 AsyncImage(
                                     model              = android.net.Uri.parse(settings.wallpaperUri),
@@ -179,8 +279,6 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigate           = { dest ->
                                         vm.cancelShortcutPicker()
-                                        vm.cancelCarPlayPicker()
-                                        vm.exitRearrangeMode()
                                         vm.navigate(dest)
                                     },
                                     onRailClick          = { pkg -> vm.launchApp(pkg) },
@@ -199,64 +297,71 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     },
+                                    isCompactHeight      = isCompactHeight,
+                                    homePressTrigger     = homePressTrigger,
                                     modifier             = sidebarModifier
                                 )
                             }
 
+                            var lastOverlayDest by remember { mutableStateOf(NavDestination.APP_LIBRARY) }
+                            LaunchedEffect(nav) {
+                                if (nav != NavDestination.HOME) {
+                                    lastOverlayDest = nav
+                                }
+                            }
+
                             val mainPane: @Composable (Modifier) -> Unit = { paneModifier ->
-                                AnimatedContent(
-                                    targetState    = nav,
-                                    transitionSpec = {
-                                        fadeIn() + slideInHorizontally { it / 10 } togetherWith
-                                        fadeOut() + slideOutHorizontally { -it / 10 }
-                                    },
-                                    modifier = paneModifier,
-                                    label    = "pane_transition"
-                                ) { destination ->
-                                    when (destination) {
-                                        NavDestination.HOME -> HomeScreen(
-                                            settings        = settings,
-                                            nowPlaying      = nowPlaying,
-                                            isDayMode       = isDayMode,
-                                            onPlayPause     = vm::playPause,
-                                            onNext          = vm::skipNext,
-                                            onPrev          = vm::skipPrev,
-                                            onTapNowPlaying = {
-                                                val pkg = nowPlaying?.controller?.packageName
-                                                if (!pkg.isNullOrEmpty()) vm.launchApp(pkg)
-                                            },
-                                            onLaunchApp     = { pkg -> vm.launchApp(pkg) }
-                                        )
+                                Box(modifier = paneModifier) {
+                                    HomeScreen(
+                                        settings                  = settings,
+                                        nowPlaying                = nowPlaying,
+                                        mediaStationState         = mediaStationState,
+                                        mediaStationViewModel     = mediaStationVm,
+                                        onMediaStationStateChange = { next -> vm.setMediaStationState(next) },
+                                        homePressTrigger          = homePressTrigger,
+                                        closeMapSearchTrigger     = closeMapSearchTrigger,
+                                        isHomeVisible             = nav == NavDestination.HOME,
+                                        onMapSearchOpenChanged    = { open -> isMapSearchOpen = open },
+                                        modifier                  = Modifier.fillMaxSize()
+                                    )
 
-                                        NavDestination.APP_LIBRARY -> AppLibraryScreen(
-                                            apps                = apps,
-                                            isLoading           = appsLoading,
-                                            isPickerMode        = pickerSlot != null,
-                                            pickerSlot          = pickerSlot,
-                                            isCarPlayPickerMode = appPickerTarget != null,
-                                            carPlayPickerLabel  = when (appPickerTarget) {
-                                                LauncherViewModel.AppPickerTarget.ANDROID_AUTO -> "CHOOSE ANDROID AUTO APP"
-                                                LauncherViewModel.AppPickerTarget.PIP          -> "CHOOSE PIP APP"
-                                                LauncherViewModel.AppPickerTarget.RADIO        -> "CHOOSE RADIO APP"
-                                                else -> "CHOOSE CARPLAY APP"
-                                            },
-                                            accent              = accent,
-                                            onAppClick          = { app -> vm.recordRecentApp(app.packageName) },
-                                            onPickerSelect      = { slot, app -> vm.assignShortcut(slot, app) },
-                                            onCarPlaySelect     = { app -> vm.assignPickerApp(app) },
-                                            pinnedPackages      = settings.pinnedApps.toSet(),
-                                            hiddenPackages      = settings.hiddenPackages.toSet(),
-                                            showHiddenApps      = settings.showHiddenApps,
-                                            onPinApp            = { app -> vm.togglePinned(app.packageName) },
-                                            onHideApp           = { app -> vm.toggleHiddenApp(app.packageName) }
-                                        )
+                                    AnimatedVisibility(
+                                        visible  = nav != NavDestination.HOME,
+                                        enter    = fadeIn() + slideInHorizontally { it / 10 },
+                                        exit     = fadeOut() + slideOutHorizontally { it / 10 },
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .pointerInput(Unit) {}
+                                        ) {
+                                            when (lastOverlayDest) {
+                                                NavDestination.APP_LIBRARY -> AppLibraryScreen(
+                                                    apps           = apps,
+                                                    isLoading      = appsLoading,
+                                                    isPickerMode   = pickerSlot != null,
+                                                    pickerSlot     = pickerSlot,
+                                                    accent         = accent,
+                                                    onAppClick     = { app -> vm.recordRecentApp(app.packageName) },
+                                                    onPickerSelect = { slot, app -> vm.assignShortcut(slot, app) },
+                                                    pinnedPackages = settings.pinnedApps.toSet(),
+                                                    hiddenPackages = settings.hiddenPackages.toSet(),
+                                                    showHiddenApps = settings.showHiddenApps,
+                                                    onPinApp       = { app -> vm.togglePinned(app.packageName) },
+                                                    onHideApp      = { app -> vm.toggleHiddenApp(app.packageName) }
+                                                )
 
-                                        NavDestination.SETTINGS -> SettingsScreen(
-                                            settings = settings,
-                                            accent   = accent,
-                                            onUpdate = { block -> vm.updateSettings(block) },
-                                            onReset  = { vm.resetSettings() }
-                                        )
+                                                NavDestination.SETTINGS -> SettingsScreen(
+                                                    settings = settings,
+                                                    accent   = accent,
+                                                    onUpdate = { block -> vm.updateSettings(block) },
+                                                    onReset  = { vm.resetSettings() }
+                                                )
+
+                                                NavDestination.HOME -> Unit
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -266,11 +371,10 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 sidebarContent(
                                     Modifier
-                                        .weight(0.08f)
-                                        .widthIn(min = 68.dp, max = 104.dp)
+                                        .width(dockWidth)
                                         .fillMaxHeight()
                                 )
-                                mainPane(Modifier.weight(0.92f).fillMaxHeight())
+                                mainPane(Modifier.weight(1f).fillMaxHeight())
                             }
                         }
                     }

@@ -3,16 +3,17 @@ package com.openlauncher.app.ui.screen
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
 import android.util.Log
-import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.VolumeOff
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,12 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -46,6 +47,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.openlauncher.app.R
 import com.openlauncher.app.ui.theme.*
 import kotlinx.coroutines.delay
 import org.json.JSONArray
@@ -68,6 +70,7 @@ import java.util.Locale
 
 private const val NAV_LOG_TAG = "PumaNav"
 private const val DARK_STYLE_URI = "https://tiles.openfreemap.org/styles/dark"
+private const val LIGHT_STYLE_URI = "https://tiles.openfreemap.org/styles/positron"
 
 private const val FALLBACK_DARK_STYLE_JSON = """
 {
@@ -80,6 +83,23 @@ private const val FALLBACK_DARK_STYLE_JSON = """
       "type": "background",
       "paint": {
         "background-color": "#111318"
+      }
+    }
+  ]
+}
+"""
+
+private const val FALLBACK_LIGHT_STYLE_JSON = """
+{
+  "version": 8,
+  "name": "PumaLightFallback",
+  "sources": {},
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#F2F3F0"
       }
     }
   ]
@@ -104,6 +124,11 @@ fun NativeNavigatorPanel(
     voiceGuidanceEnabled: Boolean = true,
     onToggleAvoidTolls: (Boolean) -> Unit = {},
     onToggleVoiceGuidance: (Boolean) -> Unit = {},
+    isCompactHeight: Boolean = false,
+    moduleShape: RoundedCornerShape = AaModuleShape,
+    homePressTrigger: Int = 0,
+    closeSearchTrigger: Int = 0,
+    onSearchOverlayChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -129,27 +154,65 @@ fun NativeNavigatorPanel(
     }
 
     val speedKmh by engine.currentSpeedKmh.collectAsState()
+    val colors = LocalCockpitColors.current
+    val isLightTheme = colors.isLight
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var styleReady by remember { mutableStateOf(false) }
+    var appliedStyleIsLight by remember { mutableStateOf<Boolean?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
+
+    val latestIsLight by rememberUpdatedState(isLightTheme)
+    val latestAccentHex by rememberUpdatedState(accentColorHex)
+    val latestLat by rememberUpdatedState(engine.currentLat)
+    val latestLon by rememberUpdatedState(engine.currentLon)
+    val latestActiveRoute by rememberUpdatedState(engine.activeRoute)
+    val latestStyleReady by rememberUpdatedState(styleReady)
+
+    val hasOpenSearchOverlay = searchFocused || searchQuery.isNotEmpty() ||
+        engine.isSearching || engine.searchResults.isNotEmpty() || engine.searchStatusMessage != null
+    LaunchedEffect(hasOpenSearchOverlay) {
+        onSearchOverlayChanged(hasOpenSearchOverlay)
+    }
+
+    LaunchedEffect(homePressTrigger) {
+        if (homePressTrigger > 0) {
+            searchQuery = ""
+            searchFocused = false
+            engine.clearSearchResults()
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+            engine.isFollowingGps = true
+            mapLibreMap?.let { map ->
+                val targetBearing = if (engine.activeRoute != null) engine.currentBearing.toDouble() else 0.0
+                val camPos = CameraPosition.Builder()
+                    .target(LatLng(engine.currentLat, engine.currentLon))
+                    .zoom(16.5)
+                    .tilt(45.0)
+                    .bearing(targetBearing)
+                    .build()
+                map.animateCamera(CameraUpdateFactory.newCameraPosition(camPos), 650)
+            }
+        }
+    }
+
+    LaunchedEffect(closeSearchTrigger) {
+        if (closeSearchTrigger > 0) {
+            searchQuery = ""
+            searchFocused = false
+            engine.clearSearchResults()
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
 
     val mapView = remember(context) {
         val options = MapLibreMapOptions.createFromAttributes(context, null)
             .textureMode(true)
         MapView(context, options).apply {
-            setBackgroundColor(AndroidColor.parseColor("#111318"))
+            setBackgroundColor(AndroidColor.parseColor(if (isLightTheme) "#F2F3F0" else "#111318"))
             onCreate(null)
-            // Intercept ACTION_UP / ACTION_CANCEL without consuming so video window is restored after map touch
-            setOnTouchListener { _, event ->
-                if (event.actionMasked == MotionEvent.ACTION_UP ||
-                    event.actionMasked == MotionEvent.ACTION_CANCEL
-                ) {
-                    restoreActiveVideoWindow(context)
-                }
-                false
-            }
         }
     }
 
@@ -178,7 +241,6 @@ fun NativeNavigatorPanel(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            HomeFreeformState.isNavigatorSearchFocused = false
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
@@ -222,37 +284,58 @@ fun NativeNavigatorPanel(
         }
     }
 
+    // Synchronize MapLibre style URI with active Day/Night theme while preserving camera & route
+    LaunchedEffect(mapLibreMap, isLightTheme) {
+        val map = mapLibreMap ?: return@LaunchedEffect
+        if (appliedStyleIsLight == isLightTheme) return@LaunchedEffect
+
+        val isThemeSwitch = appliedStyleIsLight != null
+        val preservedCamera = if (isThemeSwitch) map.cameraPosition else null
+        appliedStyleIsLight = isLightTheme
+        styleReady = false
+        mapView.setBackgroundColor(AndroidColor.parseColor(if (isLightTheme) "#F2F3F0" else "#111318"))
+
+        val targetUri = if (isLightTheme) LIGHT_STYLE_URI else DARK_STYLE_URI
+        map.setStyle(targetUri) { loadedStyle ->
+            if (latestIsLight != isLightTheme) return@setStyle
+            if (!isLightTheme) {
+                applyHighContrastDarkRoadsAndLabels(loadedStyle)
+            }
+            setupMapLayers(
+                style = loadedStyle,
+                accentHex = latestAccentHex,
+                lat = latestLat,
+                lon = latestLon,
+                route = latestActiveRoute,
+                isLightTheme = isLightTheme
+            )
+            if (preservedCamera != null && !engine.isFollowingGps) {
+                map.moveCamera(CameraUpdateFactory.newCameraPosition(preservedCamera))
+            }
+            styleReady = true
+        }
+    }
+
     // Update route polyline and accent color on map
-    LaunchedEffect(mapLibreMap, styleReady, activeRoute, accentColorHex) {
+    LaunchedEffect(mapLibreMap, styleReady, activeRoute, accentColorHex, isLightTheme) {
         val map = mapLibreMap ?: return@LaunchedEffect
         val style = map.style ?: return@LaunchedEffect
         if (!style.isFullyLoaded) return@LaunchedEffect
-        updateRouteOnStyle(style, activeRoute, accentColorHex)
+        updateRouteOnStyle(style, activeRoute, accentColorHex, isLightTheme)
     }
 
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
 
     Box(
         modifier = modifier
-            .clip(AaModuleShape)
-            .background(Color(0xFF111318))
-            .border(1.dp, AaBorder, AaModuleShape)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Final)
-                        if (event.changes.isNotEmpty() && event.changes.all { !it.pressed }) {
-                            restoreActiveVideoWindow(context)
-                        }
-                    }
-                }
-            }
+            .clip(moduleShape)
+            .background(colors.cardSurface)
+            .border(1.dp, colors.cardBorderBrush, moduleShape)
     ) {
         // 1. Native MapLibre MapView (textureMode = true so Compose overlays stay on top)
         AndroidView(
             factory = {
                 mapView.getMapAsync { map ->
-                    mapLibreMap = map
                     map.uiSettings.apply {
                         isCompassEnabled = false
                         isLogoEnabled = false
@@ -269,22 +352,6 @@ fun NativeNavigatorPanel(
                         }
                     }
 
-                    // Fallback listener if remote style fails (e.g. offline)
-                    mapView.addOnDidFailLoadingMapListener { errorMsg ->
-                        Log.d(NAV_LOG_TAG, "MapLibre style load failed ($errorMsg), attivazione fallback scuro #111318")
-                        map.setStyle(Style.Builder().fromJson(FALLBACK_DARK_STYLE_JSON)) { fallbackStyle ->
-                            setupMapLayers(fallbackStyle, accentColorHex, engine.currentLat, engine.currentLon, engine.activeRoute)
-                            styleReady = true
-                        }
-                    }
-
-                    // Load OpenFreeMap dark vector style and boost road/label contrast
-                    map.setStyle(DARK_STYLE_URI) { loadedStyle ->
-                        applyHighContrastDarkRoadsAndLabels(loadedStyle)
-                        setupMapLayers(loadedStyle, accentColorHex, engine.currentLat, engine.currentLon, engine.activeRoute)
-                        styleReady = true
-                    }
-
                     val initPos = CameraPosition.Builder()
                         .target(LatLng(engine.currentLat, engine.currentLon))
                         .zoom(16.5)
@@ -292,6 +359,28 @@ fun NativeNavigatorPanel(
                         .bearing(0.0)
                         .build()
                     map.moveCamera(CameraUpdateFactory.newCameraPosition(initPos))
+
+                    // Fallback listener if remote style fails (e.g. offline)
+                    mapView.addOnDidFailLoadingMapListener { errorMsg ->
+                        if (latestStyleReady) return@addOnDidFailLoadingMapListener
+                        val light = latestIsLight
+                        val fallbackJson = if (light) FALLBACK_LIGHT_STYLE_JSON else FALLBACK_DARK_STYLE_JSON
+                        Log.d(NAV_LOG_TAG, "MapLibre style load failed ($errorMsg), attivazione fallback ${if (light) "chiaro" else "scuro"}")
+                        map.setStyle(Style.Builder().fromJson(fallbackJson)) { fallbackStyle ->
+                            if (latestIsLight != light) return@setStyle
+                            setupMapLayers(
+                                style = fallbackStyle,
+                                accentHex = latestAccentHex,
+                                lat = latestLat,
+                                lon = latestLon,
+                                route = latestActiveRoute,
+                                isLightTheme = light
+                            )
+                            styleReady = true
+                        }
+                    }
+
+                    mapLibreMap = map
                 }
                 mapView
             },
@@ -305,9 +394,9 @@ fun NativeNavigatorPanel(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(10.dp)
+                .padding(if (isCompactHeight) 8.dp else 10.dp)
                 .zIndex(10f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(if (isCompactHeight) 4.dp else 6.dp)
         ) {
             if (activeRoute != null) {
                 TurnByTurnBanner(
@@ -319,45 +408,46 @@ fun NativeNavigatorPanel(
                     avoidTolls = engine.avoidTolls,
                     voiceGuidanceEnabled = engine.voiceGuidanceEnabled,
                     accent = accent,
+                    isCompactHeight = isCompactHeight,
                     onToggleAvoidTolls = {
                         val nextVal = !engine.avoidTolls
                         onToggleAvoidTolls(nextVal)
                         engine.updateAvoidTolls(nextVal, recalculateIfActive = true)
-                        restoreActiveVideoWindow(context)
                     },
                     onToggleVoiceGuidance = {
                         val nextVoice = !engine.voiceGuidanceEnabled
                         engine.setVoiceGuidance(nextVoice)
                         onToggleVoiceGuidance(nextVoice)
-                        restoreActiveVideoWindow(context)
                     },
                     onTerminate = {
                         engine.stopNavigation()
-                        restoreActiveVideoWindow(context)
                     }
                 )
             } else {
                 // Compact Search Bar
+                val searchBarShape = RoundedCornerShape(14.dp)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
+                        .height(if (isCompactHeight) 36.dp else 42.dp)
                         .zIndex(10f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xF0161920))
-                        .border(
-                            width = 1.dp,
-                            color = if (searchFocused) accent else AaBorder,
-                            shape = RoundedCornerShape(12.dp)
+                        .clip(searchBarShape)
+                        .background(colors.glassPillSurface)
+                        .then(
+                            if (searchFocused) {
+                                Modifier.border(1.dp, accent.copy(alpha = 0.85f), searchBarShape)
+                            } else {
+                                Modifier.border(1.dp, colors.hairlineBorder, searchBarShape)
+                            }
                         )
                         .padding(horizontal = 12.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Cerca destinazione",
-                        tint = if (searchFocused) accent else AaTextSecondary,
+                        contentDescription = stringResource(R.string.nav_search_content_desc),
+                        tint = if (searchFocused) accent else colors.textSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                     BasicTextField(
@@ -365,7 +455,7 @@ fun NativeNavigatorPanel(
                         onValueChange = { searchQuery = it },
                         singleLine = true,
                         textStyle = TextStyle(
-                            color = AaTextPrimary,
+                            color = colors.textPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         ),
@@ -376,7 +466,6 @@ fun NativeNavigatorPanel(
                                 Log.d(NAV_LOG_TAG, "ImeAction.Search premuto con query=\"$searchQuery\"")
                                 focusManager.clearFocus()
                                 keyboardController?.hide()
-                                HomeFreeformState.isNavigatorSearchFocused = false
                                 engine.triggerImmediateSearch(searchQuery)
                             }
                         ),
@@ -384,17 +473,13 @@ fun NativeNavigatorPanel(
                             .weight(1f)
                             .onFocusChanged { state ->
                                 searchFocused = state.isFocused
-                                HomeFreeformState.isNavigatorSearchFocused = state.isFocused
-                                if (!state.isFocused && engine.searchResults.isEmpty() && !engine.isSearching) {
-                                    restoreActiveVideoWindow(context)
-                                }
                             },
                         decorationBox = { inner ->
                             Box(contentAlignment = Alignment.CenterStart) {
                                 if (searchQuery.isEmpty()) {
                                     Text(
-                                        text = "Cerca indirizzo o destinazione...",
-                                        color = AaTextSecondary,
+                                        text = stringResource(R.string.nav_search_placeholder),
+                                        color = colors.textSecondary,
                                         fontSize = 13.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -418,15 +503,13 @@ fun NativeNavigatorPanel(
                                 engine.clearSearchResults()
                                 focusManager.clearFocus()
                                 keyboardController?.hide()
-                                HomeFreeformState.isNavigatorSearchFocused = false
-                                restoreActiveVideoWindow(context)
                             },
                             modifier = Modifier.size(26.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Chiudi ricerca",
-                                tint = AaTextSecondary,
+                                contentDescription = stringResource(R.string.nav_search_close),
+                                tint = colors.textSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -448,7 +531,6 @@ fun NativeNavigatorPanel(
                             val nextVal = !engine.avoidTolls
                             onToggleAvoidTolls(nextVal)
                             engine.updateAvoidTolls(nextVal, recalculateIfActive = true)
-                            restoreActiveVideoWindow(context)
                         }
                     )
                 }
@@ -462,10 +544,12 @@ fun NativeNavigatorPanel(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(max = if (isCompactHeight) 180.dp else 260.dp)
+                            .verticalScroll(rememberScrollState())
                             .zIndex(10f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFA161920))
-                            .border(1.dp, accent.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.overlayPanelSurface)
+                            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(14.dp))
                     ) {
                         when {
                             engine.isSearching && engine.searchResults.isEmpty() -> {
@@ -482,8 +566,8 @@ fun NativeNavigatorPanel(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
-                                        text = "Ricerca in corso...",
-                                        color = AaTextPrimary,
+                                        text = stringResource(R.string.nav_searching),
+                                        color = colors.textPrimary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -497,7 +581,7 @@ fun NativeNavigatorPanel(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .height(1.dp)
-                                                .background(AaBorder.copy(alpha = 0.5f))
+                                                .background(colors.hairlineBorder.copy(alpha = 0.6f))
                                         )
                                     }
                                     Row(
@@ -511,9 +595,7 @@ fun NativeNavigatorPanel(
                                                 engine.clearSearchResults()
                                                 focusManager.clearFocus()
                                                 keyboardController?.hide()
-                                                HomeFreeformState.isNavigatorSearchFocused = false
                                                 engine.calculateRoute(place, avoidTolls = engine.avoidTolls)
-                                                restoreActiveVideoWindow(context)
                                             }
                                             .padding(horizontal = 12.dp, vertical = 9.dp)
                                     ) {
@@ -526,7 +608,7 @@ fun NativeNavigatorPanel(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = place.name,
-                                                color = AaTextPrimary,
+                                                color = colors.textPrimary,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1,
@@ -535,7 +617,7 @@ fun NativeNavigatorPanel(
                                             if (place.subtitle.isNotBlank()) {
                                                 Text(
                                                     text = place.subtitle,
-                                                    color = AaTextSecondary,
+                                                    color = colors.textSecondary,
                                                     fontSize = 11.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -544,7 +626,7 @@ fun NativeNavigatorPanel(
                                         }
                                         Icon(
                                             imageVector = Icons.Default.Directions,
-                                            contentDescription = "Avvia navigazione",
+                                            contentDescription = stringResource(R.string.nav_start_navigation),
                                             tint = accent,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -567,8 +649,8 @@ fun NativeNavigatorPanel(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
-                                        text = engine.searchStatusMessage ?: "Nessun risultato trovato",
-                                        color = AaTextPrimary,
+                                        text = engine.searchStatusMessage ?: stringResource(R.string.nav_no_results),
+                                        color = colors.textPrimary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -586,17 +668,18 @@ fun NativeNavigatorPanel(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp)
+                .padding(if (isCompactHeight) 8.dp else 12.dp)
                 .zIndex(10f)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xD9111318))
-                .border(1.dp, accent, RoundedCornerShape(14.dp))
+                .background(colors.glassPillSurface)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
                 text = speedKmh.toString(),
-                color = AaTextPrimary,
-                fontSize = 22.sp,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                color = colors.textPrimary,
+                fontSize = if (isCompactHeight) 18.sp else 22.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
@@ -615,24 +698,23 @@ fun NativeNavigatorPanel(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(12.dp)
+                    .padding(if (isCompactHeight) 8.dp else 12.dp)
                     .zIndex(10f)
                     .clip(RoundedCornerShape(20.dp))
                     .background(accent)
                     .clickable {
                         engine.isFollowingGps = true
-                        restoreActiveVideoWindow(context)
                     }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.MyLocation,
-                    contentDescription = "Ricentra",
+                    contentDescription = stringResource(R.string.nav_recenter),
                     tint = onAccent,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Ricentra",
+                    text = stringResource(R.string.nav_recenter),
                     color = onAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -648,29 +730,30 @@ private fun NoTollsChip(
     accent: Color,
     onClick: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
-    val bgColor = if (avoidTolls) accent else Color(0xD9111318)
-    val borderColor = if (avoidTolls) accent else AaBorder
-    val contentColor = if (avoidTolls) onAccent else AaTextSecondary
+    val bgColor = if (avoidTolls) accent else colors.glassPillSurface
+    val contentColor = if (avoidTolls) onAccent else colors.textSecondary
+    val chipShape = RoundedCornerShape(16.dp)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(chipShape)
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .border(1.dp, if (avoidTolls) accent else colors.hairlineBorder, chipShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Icon(
             imageVector = if (avoidTolls) Icons.Default.CheckCircle else Icons.Default.MoneyOff,
-            contentDescription = "No pedaggi",
+            contentDescription = stringResource(R.string.nav_avoid_tolls),
             tint = if (avoidTolls) onAccent else accent,
             modifier = Modifier.size(14.dp)
         )
         Text(
-            text = "No pedaggi",
+            text = stringResource(R.string.nav_avoid_tolls),
             color = contentColor,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
@@ -743,20 +826,25 @@ private fun TurnByTurnBanner(
     avoidTolls: Boolean,
     voiceGuidanceEnabled: Boolean,
     accent: Color,
+    isCompactHeight: Boolean = false,
     onToggleAvoidTolls: () -> Unit,
     onToggleVoiceGuidance: () -> Unit,
     onTerminate: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .zIndex(10f)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xF2141820))
+            .background(colors.overlayPanelSurface)
             .border(1.5.dp, accent, RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(
+                horizontal = if (isCompactHeight) 10.dp else 12.dp,
+                vertical = if (isCompactHeight) 7.dp else 10.dp
+            ),
+        verticalArrangement = Arrangement.spacedBy(if (isCompactHeight) 5.dp else 8.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -766,7 +854,7 @@ private fun TurnByTurnBanner(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(if (isCompactHeight) 38.dp else 46.dp)
                     .clip(CircleShape)
                     .background(accent)
             ) {
@@ -774,7 +862,7 @@ private fun TurnByTurnBanner(
                     imageVector = turnIconVector(iconType),
                     contentDescription = null,
                     tint = onAccent,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(if (isCompactHeight) 22.dp else 28.dp)
                 )
             }
 
@@ -792,7 +880,7 @@ private fun TurnByTurnBanner(
                     if (streetText.isNotBlank()) {
                         Text(
                             text = streetText,
-                            color = AaTextPrimary,
+                            color = colors.textPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -803,7 +891,7 @@ private fun TurnByTurnBanner(
                 }
                 Text(
                     text = instructionText,
-                    color = AaTextSecondary,
+                    color = colors.textSecondary,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -823,7 +911,7 @@ private fun TurnByTurnBanner(
             ) {
                 Text(
                     text = etaText,
-                    color = AaTextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -846,18 +934,20 @@ private fun TurnByTurnBanner(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (voiceGuidanceEnabled) accent.copy(alpha = 0.2f) else Color(0xFF272C35))
+                        .background(if (voiceGuidanceEnabled) accent.copy(alpha = 0.2f) else colors.elevatedSurface)
                         .border(
                             width = 1.dp,
-                            color = if (voiceGuidanceEnabled) accent else AaBorder,
+                            color = if (voiceGuidanceEnabled) accent else colors.hairlineBorder,
                             shape = RoundedCornerShape(8.dp)
                         )
                         .clickable(onClick = onToggleVoiceGuidance)
                 ) {
                     Icon(
                         imageVector = if (voiceGuidanceEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff,
-                        contentDescription = if (voiceGuidanceEnabled) "Disattiva voce guida" else "Attiva voce guida",
-                        tint = if (voiceGuidanceEnabled) accent else AaTextSecondary,
+                        contentDescription = stringResource(
+                            if (voiceGuidanceEnabled) R.string.nav_mute_voice else R.string.nav_unmute_voice
+                        ),
+                        tint = if (voiceGuidanceEnabled) accent else colors.textSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -872,7 +962,7 @@ private fun TurnByTurnBanner(
                         .padding(horizontal = 12.dp)
                 ) {
                     Text(
-                        text = "Termina",
+                        text = stringResource(R.string.nav_end),
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -901,9 +991,16 @@ private fun setupMapLayers(
     accentHex: String,
     lat: Double,
     lon: Double,
-    route: ValhallaRoute?
+    route: ValhallaRoute?,
+    isLightTheme: Boolean
 ) {
     val safeColor = parseSafeColor(accentHex)
+    val routeCasingHex = if (isLightTheme) "#1E293B" else "#0A0D12"
+    val gpsStrokeColor = if (isLightTheme && Color(safeColor).luminance() > 0.7f) {
+        AndroidColor.parseColor("#0F172A")
+    } else {
+        AndroidColor.WHITE
+    }
 
     if (style.getSource(SOURCE_ROUTE) == null) {
         style.addSource(GeoJsonSource(SOURCE_ROUTE, emptyFeatureCollectionJson()))
@@ -911,7 +1008,7 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_ROUTE_CASING) == null) {
         style.addLayer(
             LineLayer(LAYER_ROUTE_CASING, SOURCE_ROUTE).withProperties(
-                PropertyFactory.lineColor(AndroidColor.parseColor("#0A0D12")),
+                PropertyFactory.lineColor(AndroidColor.parseColor(routeCasingHex)),
                 PropertyFactory.lineWidth(9f),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
@@ -961,12 +1058,12 @@ private fun setupMapLayers(
                 PropertyFactory.circleRadius(7.5f),
                 PropertyFactory.circleColor(safeColor),
                 PropertyFactory.circleStrokeWidth(2.5f),
-                PropertyFactory.circleStrokeColor(AndroidColor.WHITE)
+                PropertyFactory.circleStrokeColor(gpsStrokeColor)
             )
         )
     }
 
-    updateRouteOnStyle(style, route, accentHex)
+    updateRouteOnStyle(style, route, accentHex, isLightTheme)
 }
 
 private fun updateGpsSource(style: Style, lat: Double, lon: Double) {
@@ -974,8 +1071,17 @@ private fun updateGpsSource(style: Style, lat: Double, lon: Double) {
     src.setGeoJson(pointFeatureJson(lat, lon))
 }
 
-private fun updateRouteOnStyle(style: Style, route: ValhallaRoute?, accentHex: String) {
+private fun updateRouteOnStyle(style: Style, route: ValhallaRoute?, accentHex: String, isLightTheme: Boolean) {
     val safeColor = parseSafeColor(accentHex)
+    val routeCasingHex = if (isLightTheme) "#1E293B" else "#0A0D12"
+    val gpsStrokeColor = if (isLightTheme && Color(safeColor).luminance() > 0.7f) {
+        AndroidColor.parseColor("#0F172A")
+    } else {
+        AndroidColor.WHITE
+    }
+    (style.getLayer(LAYER_ROUTE_CASING) as? LineLayer)?.setProperties(
+        PropertyFactory.lineColor(AndroidColor.parseColor(routeCasingHex))
+    )
     (style.getLayer(LAYER_ROUTE) as? LineLayer)?.setProperties(
         PropertyFactory.lineColor(safeColor)
     )
@@ -983,7 +1089,8 @@ private fun updateRouteOnStyle(style: Style, route: ValhallaRoute?, accentHex: S
         PropertyFactory.circleColor(safeColor)
     )
     (style.getLayer(LAYER_GPS_DOT) as? CircleLayer)?.setProperties(
-        PropertyFactory.circleColor(safeColor)
+        PropertyFactory.circleColor(safeColor),
+        PropertyFactory.circleStrokeColor(gpsStrokeColor)
     )
     (style.getLayer(LAYER_DEST_DOT) as? CircleLayer)?.setProperties(
         PropertyFactory.circleStrokeColor(safeColor)

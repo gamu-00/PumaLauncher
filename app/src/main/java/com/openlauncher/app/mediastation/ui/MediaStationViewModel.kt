@@ -3,11 +3,13 @@ package com.openlauncher.app.mediastation.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.openlauncher.app.R
 import com.openlauncher.app.mediastation.data.EpisodeItem
 import com.openlauncher.app.mediastation.data.MediaPosterItem
 import com.openlauncher.app.mediastation.data.MediaStationRepository
 import com.openlauncher.app.mediastation.data.MediaStationStorage
 import com.openlauncher.app.mediastation.data.PlayableStream
+import com.openlauncher.app.util.AppLanguageManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,7 +73,7 @@ data class MoviesUiState(
 class MediaStationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val storage = MediaStationStorage(application.applicationContext)
-    private val repository = MediaStationRepository(storage)
+    private val repository = MediaStationRepository(application.applicationContext, storage)
 
     private val _uiState = MutableStateFlow(MoviesUiState())
     val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()
@@ -138,7 +140,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                         it.copy(
                             topMovies = it.topMovies.copy(
                                 isLoading = false,
-                                error = e.message ?: "Errore caricamento film"
+                                error = e.message ?: AppLanguageManager.localizedString(
+                                    getApplication(),
+                                    R.string.media_error_load_movies
+                                )
                             )
                         )
                     }
@@ -160,7 +165,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                         it.copy(
                             topSeries = it.topSeries.copy(
                                 isLoading = false,
-                                error = e.message ?: "Errore caricamento serie TV"
+                                error = e.message ?: AppLanguageManager.localizedString(
+                                    getApplication(),
+                                    R.string.media_error_load_series
+                                )
                             )
                         )
                     }
@@ -192,7 +200,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                         it.copy(
                             continueWatching = it.continueWatching.copy(
                                 isLoading = false,
-                                error = e.message ?: "Errore sincronizzazione Stremio"
+                                error = e.message ?: AppLanguageManager.localizedString(
+                                    getApplication(),
+                                    R.string.media_error_stremio_sync
+                                )
                             )
                         )
                     }
@@ -254,7 +265,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                     _uiState.update {
                         it.copy(
                             isSearching = false,
-                            searchError = e.message ?: "Errore durante la ricerca"
+                            searchError = e.message ?: AppLanguageManager.localizedString(
+                                getApplication(),
+                                R.string.media_error_search_failed
+                            )
                         )
                     }
                 }
@@ -318,7 +332,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                     _uiState.update {
                         it.copy(
                             isLoadingEpisodes = false,
-                            episodesError = e.message ?: "Impossibile caricare gli episodi"
+                            episodesError = e.message ?: AppLanguageManager.localizedString(
+                                getApplication(),
+                                R.string.media_error_load_episodes
+                            )
                         )
                     }
                 }
@@ -351,7 +368,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                     _uiState.update {
                         it.copy(
                             isLoadingEpisodes = false,
-                            episodesError = e.message ?: "Impossibile caricare gli episodi"
+                            episodesError = e.message ?: AppLanguageManager.localizedString(
+                                getApplication(),
+                                R.string.media_error_load_episodes
+                            )
                         )
                     }
                 }
@@ -433,7 +453,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                             resolvedStreams = emptyList(),
                             currentStreamIndex = 0,
                             isResolvingStreams = false,
-                            streamError = "Nessun flusso in italiano trovato in cache"
+                            streamError = AppLanguageManager.localizedString(
+                                getApplication(),
+                                R.string.media_no_streams_found
+                            )
                         )
                     }
                 } else {
@@ -450,7 +473,10 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
                 _uiState.update {
                     it.copy(
                         isResolvingStreams = false,
-                        streamError = e.message ?: "Errore risoluzione sorgenti"
+                        streamError = e.message ?: AppLanguageManager.localizedString(
+                            getApplication(),
+                            R.string.media_error_resolve_streams
+                        )
                     )
                 }
             }
@@ -472,7 +498,12 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
             _uiState.update { it.copy(currentStreamIndex = nextIndex, streamError = null) }
         } else {
             _uiState.update {
-                it.copy(streamError = "Tutte le sorgenti disponibili hanno fallito la riproduzione.")
+                it.copy(
+                    streamError = AppLanguageManager.localizedString(
+                        getApplication(),
+                        R.string.media_all_streams_failed
+                    )
+                )
             }
         }
     }
@@ -505,6 +536,28 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
     fun navigateBack(onExitToIdle: () -> Unit) {
         if (!navigateBackInternal()) {
             onExitToIdle()
+        }
+    }
+
+    fun resetToCatalog() {
+        searchJob?.cancel()
+        episodesJob?.cancel()
+        resolveJob?.cancel()
+        backStack.clear()
+        _uiState.update {
+            it.copy(
+                screen = MoviesScreen.CATALOG,
+                searchQuery = "",
+                searchResults = emptyList(),
+                isSearching = false,
+                searchError = null,
+                isLoadingEpisodes = false,
+                episodesError = null,
+                resolvedStreams = emptyList(),
+                currentStreamIndex = 0,
+                isResolvingStreams = false,
+                streamError = null
+            )
         }
     }
 

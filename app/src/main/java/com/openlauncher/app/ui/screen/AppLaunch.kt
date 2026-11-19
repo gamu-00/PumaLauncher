@@ -3,11 +3,8 @@ package com.openlauncher.app.ui.screen
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
-/** Standard full-screen launch of [packageName] (no windowing-mode tricks). */
+/** Standard full-screen launch of [packageName]. */
 fun launchInFullscreen(context: Context, packageName: String): Boolean {
     val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: run {
         Log.d("AppLaunch", "LaunchIntent non trovato per $packageName")
@@ -22,14 +19,3 @@ fun launchInFullscreen(context: Context, packageName: String): Boolean {
         false
     }
 }
-
-/**
- * Compatibility shims for the untouched navigator panel / now-playing widget, which still
- * reference the removed Freeform video system. Both are inert; remove together with those call sites.
- */
-object HomeFreeformState {
-    var isNavigatorSearchFocused by mutableStateOf(false)
-}
-
-@Suppress("UNUSED_PARAMETER")
-fun restoreActiveVideoWindow(context: Context) { /* no-op: Freeform video removed */ }

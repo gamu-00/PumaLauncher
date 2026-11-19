@@ -51,14 +51,15 @@ data class PlayableStream(
     val name: String,
     val title: String,
     val headers: Map<String, String>,
-    val score: Int
+    val score: Int,
+    val languageTag: String? = null
 ) {
     val displayName: String
         get() = listOf(name, title)
             .map { it.replace('\n', ' ').trim() }
             .filter { it.isNotEmpty() }
             .joinToString(" • ")
-            .ifEmpty { "Stream HTTP" }
+            .ifEmpty { "HTTP Stream" }
 }
 
 // ── Cinemeta DTOs ─────────────────────────────────────────────────────────────

@@ -15,8 +15,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.openlauncher.app.ui.theme.accentPresetLabels
+import com.openlauncher.app.R
+import com.openlauncher.app.ui.theme.LocalCockpitColors
+import com.openlauncher.app.ui.theme.accentPresetLabelRes
 import com.openlauncher.app.ui.theme.accentPresets
 
 @Composable
@@ -26,6 +29,9 @@ fun ColorPickerDialog(
     onColorSelected: (Color) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
+    val thumbColor = if (colors.isLight) colors.textPrimary else Color.White
+
     // Seed HSV state from the initial color synchronously — initializing in a
     // LaunchedEffect made the sliders flash wrong positions on the first frame
     val initialHsv = remember(initialColor) {
@@ -49,15 +55,14 @@ fun ColorPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        // Always-dark surface: pin light content colors so day mode stays legible
-        containerColor    = Color(0xFF1A1A1A),
-        titleContentColor = Color.White,
-        textContentColor  = Color(0xFFCCCCCC),
+        containerColor    = colors.cardSurface,
+        titleContentColor = colors.textPrimary,
+        textContentColor  = colors.textSecondary,
         title = { Text(title) },
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Preset swatches
-                Text("Presets", style = MaterialTheme.typography.labelMedium, color = Color(0xFF888888))
+                Text(stringResource(R.string.color_picker_presets), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     accentPresets.forEachIndexed { i, color ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -67,25 +72,30 @@ fun ColorPickerDialog(
                                     .clip(CircleShape)
                                     .background(color)
                                     .border(
-                                        width = 1.dp,
-                                        color = if (selectedColor == color) Color.White else Color(0xFF333333),
+                                        width = if (selectedColor == color) 2.5.dp else 1.dp,
+                                        color = if (selectedColor == color) colors.textPrimary else colors.hairlineBorder,
                                         shape = CircleShape
                                     )
                                     .clickable { syncFrom(color) }
                             )
                             Spacer(Modifier.height(2.dp))
-                            Text(accentPresetLabels[i], style = MaterialTheme.typography.labelSmall, color = Color(0xFF555555), fontSize = androidx.compose.ui.unit.TextUnit(8f, androidx.compose.ui.unit.TextUnitType.Sp))
+                            Text(
+                                stringResource(accentPresetLabelRes[i]),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary,
+                                fontSize = androidx.compose.ui.unit.TextUnit(8f, androidx.compose.ui.unit.TextUnitType.Sp)
+                            )
                         }
                     }
                 }
 
-                Divider(color = Color(0xFF2A2A2A))
+                HorizontalDivider(color = colors.hairlineBorder)
 
                 // Custom HSV sliders
-                Text("Custom", style = MaterialTheme.typography.labelMedium, color = Color(0xFF888888))
+                Text(stringResource(R.string.color_picker_custom), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
 
                 // Hue slider
-                Text("Hue", style = MaterialTheme.typography.labelSmall, color = Color(0xFF666666))
+                Text(stringResource(R.string.color_picker_hue), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
                 Slider(
                     value = hue / 360f,
                     onValueChange = { hue = it * 360f; rebuildColor() },
@@ -99,14 +109,14 @@ fun ColorPickerDialog(
                             }
                         )),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
+                        thumbColor = thumbColor,
                         activeTrackColor = Color.Transparent,
                         inactiveTrackColor = Color.Transparent
                     )
                 )
 
                 // Saturation slider
-                Text("Saturation", style = MaterialTheme.typography.labelSmall, color = Color(0xFF666666))
+                Text(stringResource(R.string.color_picker_saturation), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
                 Slider(
                     value = sat,
                     onValueChange = { sat = it; rebuildColor() },
@@ -119,14 +129,14 @@ fun ColorPickerDialog(
                             Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, value)))
                         ))),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
+                        thumbColor = thumbColor,
                         activeTrackColor = Color.Transparent,
                         inactiveTrackColor = Color.Transparent
                     )
                 )
 
                 // Brightness slider
-                Text("Brightness", style = MaterialTheme.typography.labelSmall, color = Color(0xFF666666))
+                Text(stringResource(R.string.color_picker_brightness), style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
                 Slider(
                     value = value,
                     onValueChange = { value = it; rebuildColor() },
@@ -139,7 +149,7 @@ fun ColorPickerDialog(
                             Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, 1f)))
                         ))),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
+                        thumbColor = thumbColor,
                         activeTrackColor = Color.Transparent,
                         inactiveTrackColor = Color.Transparent
                     )
@@ -152,6 +162,7 @@ fun ColorPickerDialog(
                         .height(36.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(selectedColor)
+                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(8.dp))
                 )
             }
         },
@@ -165,11 +176,11 @@ fun ColorPickerDialog(
                     contentColor   = if (selectedColor.luminance() > 0.5f) Color.Black else Color.White
                 )
             ) {
-                Text("Apply")
+                Text(stringResource(R.string.action_apply))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Color(0xFFAAAAAA)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = colors.textSecondary) }
         }
     )
 }

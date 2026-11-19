@@ -1,7 +1,6 @@
 package com.openlauncher.app.mediastation.ui
 
 import android.app.Activity
-import android.app.Application
 import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
@@ -52,44 +51,34 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import coil.compose.AsyncImage
+import com.openlauncher.app.R
 import com.openlauncher.app.mediastation.data.EpisodeItem
 import com.openlauncher.app.mediastation.data.MediaPosterItem
 import com.openlauncher.app.ui.theme.AaAmber
 import com.openlauncher.app.ui.theme.AaAmberAlt
-import com.openlauncher.app.ui.theme.AaBorder
-import com.openlauncher.app.ui.theme.AaPanel
-import com.openlauncher.app.ui.theme.AaPanelHigh
-import com.openlauncher.app.ui.theme.AaTextPrimary
-import com.openlauncher.app.ui.theme.AaTextSecondary
+import com.openlauncher.app.ui.theme.LocalCockpitColors
 import kotlinx.coroutines.launch
 
 @Composable
 internal fun MoviesHubView(
+    viewModel: MediaStationViewModel,
+    isCompactHeight: Boolean = false,
+    isHomeVisible: Boolean = true,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val owner = checkNotNull(LocalViewModelStoreOwner.current) {
-        "LocalViewModelStoreOwner is required"
-    }
-    val viewModel = remember(owner, context) {
-        val app = context.applicationContext as Application
-        ViewModelProvider(
-            owner,
-            ViewModelProvider.AndroidViewModelFactory.getInstance(app)
-        )[MediaStationViewModel::class.java]
-    }
 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -113,17 +102,17 @@ internal fun MoviesHubView(
     val launchVoiceSearch = {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Cerca film o serie TV")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.movies_voice_prompt))
         }
         try {
             voiceUnavailableMessage = null
             voiceLauncher.launch(intent)
         } catch (_: Exception) {
-            voiceUnavailableMessage = "Ricerca vocale non disponibile su questo dispositivo"
+            voiceUnavailableMessage = context.getString(R.string.movies_voice_unavailable)
         }
     }
 
-    BackHandler(enabled = state.screen != MoviesScreen.CATALOG) {
+    BackHandler(enabled = isHomeVisible && state.screen != MoviesScreen.CATALOG) {
         viewModel.navigateBack(onClose)
     }
 
@@ -135,6 +124,8 @@ internal fun MoviesHubView(
             resumeOffsetMs = state.resumeOffsetMs,
             isResolvingStreams = state.isResolvingStreams,
             streamError = state.streamError,
+            isCompactHeight = isCompactHeight,
+            isHomeVisible = isHomeVisible,
             onCycleStream = { viewModel.cycleNextStream() },
             onStreamError = { viewModel.advanceStreamOnError() },
             onRetryResolve = { viewModel.retryResolveStreams() },
@@ -145,16 +136,19 @@ internal fun MoviesHubView(
         return
     }
 
+    val colors = LocalCockpitColors.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AaPanel)
+            .background(colors.cardSurface)
             .imePadding()
     ) {
         MoviesTopBar(
             screen = state.screen,
             seriesTitle = state.selectedSeries?.title,
             searchQuery = state.searchQuery,
+            isCompactHeight = isCompactHeight,
             onSearchQueryChange = { viewModel.updateSearchQuery(it) },
             onSubmitSearch = {
                 keyboardController?.hide()
@@ -182,7 +176,7 @@ internal fun MoviesHubView(
                 fontSize = 11.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AaPanelHigh)
+                    .background(colors.elevatedSurface)
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             )
         }
@@ -241,6 +235,7 @@ private fun MoviesTopBar(
     screen: MoviesScreen,
     seriesTitle: String?,
     searchQuery: String,
+    isCompactHeight: Boolean = false,
     onSearchQueryChange: (String) -> Unit,
     onSubmitSearch: () -> Unit,
     onOpenSearch: () -> Unit,
@@ -248,11 +243,13 @@ private fun MoviesTopBar(
     onOpenSettings: () -> Unit,
     onCloseOrBack: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
+    val iconButtonSize = if (isCompactHeight) 30.dp else 34.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(AaPanelHigh)
+            .height(if (isCompactHeight) 34.dp else 40.dp)
+            .background(colors.elevatedSurface)
             .padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -263,8 +260,8 @@ private fun MoviesTopBar(
                     .weight(1f)
                     .height(30.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AaPanel)
-                    .border(1.dp, AaBorder, RoundedCornerShape(10.dp))
+                    .background(colors.cardSurface)
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -276,14 +273,14 @@ private fun MoviesTopBar(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
-                        tint = AaTextSecondary,
+                        tint = colors.textSecondary,
                         modifier = Modifier.size(15.dp)
                     )
                     Box(modifier = Modifier.weight(1f)) {
                         if (searchQuery.isEmpty()) {
                             Text(
-                                text = "Cerca film o serie...",
-                                color = AaTextSecondary,
+                                text = stringResource(R.string.movies_search_placeholder),
+                                color = colors.textSecondary,
                                 fontSize = 12.sp,
                                 maxLines = 1
                             )
@@ -293,7 +290,7 @@ private fun MoviesTopBar(
                             onValueChange = onSearchQueryChange,
                             singleLine = true,
                             textStyle = TextStyle(
-                                color = AaTextPrimary,
+                                color = colors.textPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             ),
@@ -306,8 +303,8 @@ private fun MoviesTopBar(
                     if (searchQuery.isNotEmpty()) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Cancella",
-                            tint = AaTextSecondary,
+                            contentDescription = stringResource(R.string.action_clear),
+                            tint = colors.textSecondary,
                             modifier = Modifier
                                 .size(16.dp)
                                 .clickable { onSearchQueryChange("") }
@@ -317,14 +314,14 @@ private fun MoviesTopBar(
             }
         } else {
             val barTitle = when (screen) {
-                MoviesScreen.CATALOG -> "FILM & SERIE TV"
-                MoviesScreen.SETTINGS -> "IMPOSTAZIONI"
-                MoviesScreen.EPISODES -> seriesTitle ?: "EPISODI"
-                else -> "FILM & SERIE TV"
+                MoviesScreen.CATALOG -> stringResource(R.string.movies_title_upper)
+                MoviesScreen.SETTINGS -> stringResource(R.string.settings_title_upper)
+                MoviesScreen.EPISODES -> seriesTitle ?: stringResource(R.string.movies_episodes_upper)
+                else -> stringResource(R.string.movies_title_upper)
             }
             Text(
                 text = barTitle,
-                color = AaTextPrimary,
+                color = colors.textPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -333,12 +330,13 @@ private fun MoviesTopBar(
             )
             TopBarIconButton(
                 onClick = onOpenSearch,
-                contentDescription = "Cerca"
+                contentDescription = stringResource(R.string.action_search),
+                buttonSize = iconButtonSize
             ) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Cerca",
-                    tint = AaTextPrimary,
+                    contentDescription = stringResource(R.string.action_search),
+                    tint = colors.textPrimary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -346,11 +344,12 @@ private fun MoviesTopBar(
 
         TopBarIconButton(
             onClick = onVoiceSearch,
-            contentDescription = "Ricerca vocale"
+            contentDescription = stringResource(R.string.movies_voice_search),
+            buttonSize = iconButtonSize
         ) {
             Icon(
                 imageVector = Icons.Default.Mic,
-                contentDescription = "Ricerca vocale",
+                contentDescription = stringResource(R.string.movies_voice_search),
                 tint = AaAmberAlt,
                 modifier = Modifier.size(18.dp)
             )
@@ -358,23 +357,27 @@ private fun MoviesTopBar(
 
         TopBarIconButton(
             onClick = onOpenSettings,
-            contentDescription = "Impostazioni"
+            contentDescription = stringResource(R.string.nav_settings),
+            buttonSize = iconButtonSize
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
-                contentDescription = "Impostazioni",
-                tint = if (screen == MoviesScreen.SETTINGS) AaAmber else AaTextPrimary,
+                contentDescription = stringResource(R.string.nav_settings),
+                tint = if (screen == MoviesScreen.SETTINGS) AaAmber else colors.textPrimary,
                 modifier = Modifier.size(18.dp)
             )
         }
 
         TopBarIconButton(
             onClick = onCloseOrBack,
-            contentDescription = if (screen == MoviesScreen.CATALOG) "Chiudi" else "Indietro"
+            contentDescription = stringResource(
+                if (screen == MoviesScreen.CATALOG) R.string.action_close else R.string.action_back
+            ),
+            buttonSize = iconButtonSize
         ) {
             Text(
                 text = "\u2715",
-                color = AaTextPrimary,
+                color = colors.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold
             )
@@ -386,11 +389,12 @@ private fun MoviesTopBar(
 private fun TopBarIconButton(
     onClick: () -> Unit,
     contentDescription: String,
+    buttonSize: Dp = 34.dp,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(buttonSize)
             .clip(RoundedCornerShape(8.dp))
             .semantics { this.contentDescription = contentDescription }
             .clickable(onClick = onClick),
@@ -411,7 +415,11 @@ private fun CatalogPagerView(
 ) {
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
-    val labels = listOf("Riprendi", "Film", "Serie")
+    val labels = listOf(
+        stringResource(R.string.movies_tab_resume),
+        stringResource(R.string.movies_tab_movies),
+        stringResource(R.string.movies_tab_series)
+    )
 
     Row(modifier = Modifier.fillMaxSize()) {
         VerticalPager(
@@ -430,14 +438,14 @@ private fun CatalogPagerView(
                 )
 
                 1 -> CatalogSectionPage(
-                    title = "Film",
+                    title = stringResource(R.string.movies_section_movies),
                     section = state.topMovies,
                     onPosterClick = onPosterClick,
                     onRetry = onRetryMovies
                 )
 
                 2 -> CatalogSectionPage(
-                    title = "Serie TV",
+                    title = stringResource(R.string.movies_section_series),
                     section = state.topSeries,
                     onPosterClick = onPosterClick,
                     onRetry = onRetrySeries
@@ -475,7 +483,7 @@ private fun CatalogPagerView(
                             )
                             .clip(CircleShape)
                             .background(
-                                if (selected) AaAmberAlt else AaTextSecondary.copy(alpha = 0.4f)
+                                if (selected) AaAmberAlt else LocalCockpitColors.current.textSecondary.copy(alpha = 0.4f)
                             )
                     )
                 }
@@ -498,19 +506,20 @@ private fun ContinueWatchingPage(
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
     ) {
         SectionHeader(
-            title = "Riprendi a guardare",
+            title = stringResource(R.string.movies_continue_watching),
             isLoading = section.isLoading,
             onRefresh = if (authKeyConfigured) onRefresh else null
         )
 
         Spacer(Modifier.height(6.dp))
 
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
+            val posterWidth = (maxHeight * 0.58f).coerceIn(78.dp, 138.dp)
             when {
                 !authKeyConfigured && section.items.isEmpty() -> {
                     Column(
@@ -519,8 +528,8 @@ private fun ContinueWatchingPage(
                         modifier = Modifier.padding(horizontal = 16.dp)
                     ) {
                         Text(
-                            text = "Inserisci la tua Stremio authKey per vedere i titoli iniziati.",
-                            color = AaTextSecondary,
+                            text = stringResource(R.string.movies_stremio_prompt),
+                            color = LocalCockpitColors.current.textSecondary,
                             fontSize = 12.sp
                         )
                         Button(
@@ -529,7 +538,7 @@ private fun ContinueWatchingPage(
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                text = "Apri Impostazioni",
+                                text = stringResource(R.string.movies_open_settings),
                                 color = Color.Black,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -548,8 +557,8 @@ private fun ContinueWatchingPage(
 
                 section.items.isEmpty() -> {
                     Text(
-                        text = "Nessun contenuto da riprendere",
-                        color = AaTextSecondary,
+                        text = stringResource(R.string.movies_nothing_to_resume),
+                        color = LocalCockpitColors.current.textSecondary,
                         fontSize = 13.sp
                     )
                 }
@@ -564,6 +573,7 @@ private fun ContinueWatchingPage(
                             PosterCard(
                                 item = item,
                                 showProgress = true,
+                                posterWidth = posterWidth,
                                 onClick = { onPosterClick(item) }
                             )
                         }
@@ -594,12 +604,13 @@ private fun CatalogSectionPage(
 
         Spacer(Modifier.height(6.dp))
 
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
+            val posterWidth = (maxHeight * 0.58f).coerceIn(78.dp, 138.dp)
             when {
                 section.isLoading && section.items.isEmpty() -> {
                     CircularProgressIndicator(color = AaAmberAlt, strokeWidth = 3.dp)
@@ -611,8 +622,8 @@ private fun CatalogSectionPage(
 
                 section.items.isEmpty() -> {
                     Text(
-                        text = "Nessun titolo disponibile",
-                        color = AaTextSecondary,
+                        text = stringResource(R.string.movies_no_titles),
+                        color = LocalCockpitColors.current.textSecondary,
                         fontSize = 13.sp
                     )
                 }
@@ -627,6 +638,7 @@ private fun CatalogSectionPage(
                             PosterCard(
                                 item = item,
                                 showProgress = false,
+                                posterWidth = posterWidth,
                                 onClick = { onPosterClick(item) }
                             )
                         }
@@ -643,6 +655,7 @@ private fun SectionHeader(
     isLoading: Boolean,
     onRefresh: (() -> Unit)?
 ) {
+    val colors = LocalCockpitColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -651,7 +664,7 @@ private fun SectionHeader(
     ) {
         Text(
             text = title,
-            color = AaTextPrimary,
+            color = colors.textPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
@@ -665,8 +678,8 @@ private fun SectionHeader(
         } else if (onRefresh != null) {
             Icon(
                 imageVector = Icons.Default.Refresh,
-                contentDescription = "Aggiorna",
-                tint = AaTextSecondary,
+                contentDescription = stringResource(R.string.action_refresh),
+                tint = colors.textSecondary,
                 modifier = Modifier
                     .size(18.dp)
                     .clickable(onClick = onRefresh)
@@ -679,12 +692,14 @@ private fun SectionHeader(
 private fun PosterCard(
     item: MediaPosterItem,
     showProgress: Boolean,
+    posterWidth: Dp = 138.dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalCockpitColors.current
     Column(
         modifier = modifier
-            .width(138.dp)
+            .width(posterWidth)
             .fillMaxHeight()
             .clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -694,8 +709,8 @@ private fun PosterCard(
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(12.dp))
-                .background(AaPanelHigh)
-                .border(1.dp, AaBorder, RoundedCornerShape(12.dp))
+                .background(colors.elevatedSurface)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(12.dp))
         ) {
             if (!item.posterUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -709,7 +724,7 @@ private fun PosterCard(
                     Icon(
                         imageVector = Icons.Default.Movie,
                         contentDescription = null,
-                        tint = AaTextSecondary.copy(alpha = 0.4f),
+                        tint = colors.textSecondary.copy(alpha = 0.4f),
                         modifier = Modifier.size(34.dp)
                     )
                 }
@@ -753,7 +768,7 @@ private fun PosterCard(
 
         Text(
             text = item.title,
-            color = AaTextPrimary,
+            color = colors.textPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
@@ -772,6 +787,7 @@ private fun SearchResultsView(
     onPosterClick: (MediaPosterItem) -> Unit,
     onRetry: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -789,16 +805,16 @@ private fun SearchResultsView(
 
             query.isBlank() -> {
                 Text(
-                    text = "Digita o usa il microfono per cercare",
-                    color = AaTextSecondary,
+                    text = stringResource(R.string.movies_search_hint),
+                    color = colors.textSecondary,
                     fontSize = 13.sp
                 )
             }
 
             results.isEmpty() -> {
                 Text(
-                    text = "Nessun risultato per \"$query\"",
-                    color = AaTextSecondary,
+                    text = stringResource(R.string.movies_search_no_results, query),
+                    color = colors.textSecondary,
                     fontSize = 13.sp
                 )
             }
@@ -827,6 +843,7 @@ private fun SearchGridPosterCard(
     item: MediaPosterItem,
     onClick: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -838,8 +855,8 @@ private fun SearchGridPosterCard(
                 .fillMaxWidth()
                 .aspectRatio(0.67f)
                 .clip(RoundedCornerShape(10.dp))
-                .background(AaPanelHigh)
-                .border(1.dp, AaBorder, RoundedCornerShape(10.dp))
+                .background(colors.elevatedSurface)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(10.dp))
         ) {
             if (!item.posterUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -858,8 +875,10 @@ private fun SearchGridPosterCard(
                     .padding(horizontal = 5.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = if (item.type == "series") "Serie" else "Film",
-                    color = AaTextPrimary,
+                    text = stringResource(
+                        if (item.type == "series") R.string.movies_badge_series else R.string.movies_badge_movie
+                    ),
+                    color = Color.White,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -867,7 +886,7 @@ private fun SearchGridPosterCard(
         }
         Text(
             text = item.title,
-            color = AaTextPrimary,
+            color = colors.textPrimary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 2,
@@ -883,20 +902,21 @@ private fun MoviesSettingsView(
     initialAddonUrl: String,
     onSave: (authKey: String, addonUrl: String) -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     var authKey by remember(initialAuthKey) { mutableStateOf(initialAuthKey) }
     var addonUrl by remember(initialAddonUrl) { mutableStateOf(initialAddonUrl) }
     val clipboardManager = LocalClipboardManager.current
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = AaTextPrimary,
-        unfocusedTextColor = AaTextPrimary,
+        focusedTextColor = colors.textPrimary,
+        unfocusedTextColor = colors.textPrimary,
         focusedBorderColor = AaAmberAlt,
-        unfocusedBorderColor = AaBorder,
+        unfocusedBorderColor = colors.hairlineBorder,
         focusedLabelColor = AaAmberAlt,
-        unfocusedLabelColor = AaTextSecondary,
+        unfocusedLabelColor = colors.textSecondary,
         cursorColor = AaAmberAlt,
-        focusedContainerColor = AaPanelHigh,
-        unfocusedContainerColor = AaPanelHigh
+        focusedContainerColor = colors.elevatedSurface,
+        unfocusedContainerColor = colors.elevatedSurface
     )
 
     Column(
@@ -914,8 +934,8 @@ private fun MoviesSettingsView(
             OutlinedTextField(
                 value = authKey,
                 onValueChange = { authKey = it },
-                label = { Text("Stremio authKey", fontSize = 11.sp) },
-                placeholder = { Text("Incolla authKey account Stremio", fontSize = 11.sp) },
+                label = { Text(stringResource(R.string.movies_settings_auth_label), fontSize = 11.sp) },
+                placeholder = { Text(stringResource(R.string.movies_settings_auth_placeholder), fontSize = 11.sp) },
                 singleLine = true,
                 colors = fieldColors,
                 textStyle = TextStyle(fontSize = 12.sp),
@@ -929,13 +949,13 @@ private fun MoviesSettingsView(
                         authKey = clip
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AaPanelHigh),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.elevatedSurface),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                modifier = Modifier.border(1.dp, AaBorder, RoundedCornerShape(8.dp))
+                modifier = Modifier.border(1.dp, colors.hairlineBorder, RoundedCornerShape(8.dp))
             ) {
                 Text(
-                    text = "Incolla",
+                    text = stringResource(R.string.action_paste),
                     color = AaAmberAlt,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -951,8 +971,8 @@ private fun MoviesSettingsView(
             OutlinedTextField(
                 value = addonUrl,
                 onValueChange = { addonUrl = it },
-                label = { Text("URL Addon Resolver", fontSize = 11.sp) },
-                placeholder = { Text("https://esempio-addon.org/manifest.json", fontSize = 11.sp) },
+                label = { Text(stringResource(R.string.movies_settings_addon_label), fontSize = 11.sp) },
+                placeholder = { Text(stringResource(R.string.movies_settings_addon_placeholder), fontSize = 11.sp) },
                 singleLine = true,
                 colors = fieldColors,
                 textStyle = TextStyle(fontSize = 12.sp),
@@ -966,13 +986,13 @@ private fun MoviesSettingsView(
                         addonUrl = clip
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AaPanelHigh),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.elevatedSurface),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                modifier = Modifier.border(1.dp, AaBorder, RoundedCornerShape(8.dp))
+                modifier = Modifier.border(1.dp, colors.hairlineBorder, RoundedCornerShape(8.dp))
             ) {
                 Text(
-                    text = "Incolla",
+                    text = stringResource(R.string.action_paste),
                     color = AaAmberAlt,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -981,8 +1001,8 @@ private fun MoviesSettingsView(
         }
 
         Text(
-            text = "Eventuali /manifest.json o / finali vengono rimossi automaticamente.",
-            color = AaTextSecondary,
+            text = stringResource(R.string.movies_settings_addon_hint),
+            color = colors.textSecondary,
             fontSize = 10.sp
         )
 
@@ -993,7 +1013,7 @@ private fun MoviesSettingsView(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "Salva",
+                text = stringResource(R.string.action_save),
                 color = Color.Black,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold
@@ -1009,6 +1029,7 @@ private fun SeriesEpisodesView(
     onEpisodeClick: (EpisodeItem) -> Unit,
     onRetry: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     val seasons = state.availableSeasons
     val seasonEpisodes = state.episodesForSelectedSeason
     val listState = rememberLazyListState()
@@ -1038,8 +1059,8 @@ private fun SeriesEpisodesView(
 
             state.episodes.isEmpty() -> {
                 Text(
-                    text = "Nessun episodio disponibile",
-                    color = AaTextSecondary,
+                    text = stringResource(R.string.movies_no_episodes),
+                    color = colors.textSecondary,
                     fontSize = 13.sp
                 )
             }
@@ -1059,18 +1080,18 @@ private fun SeriesEpisodesView(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(if (selected) AaAmberAlt else AaPanelHigh)
+                                    .background(if (selected) AaAmberAlt else colors.elevatedSurface)
                                     .border(
                                         width = 1.dp,
-                                        color = if (selected) AaAmberAlt else AaBorder,
+                                        color = if (selected) AaAmberAlt else colors.hairlineBorder,
                                         shape = RoundedCornerShape(14.dp)
                                     )
                                     .clickable { onSelectSeason(season) }
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "Stagione $season",
-                                    color = if (selected) Color.Black else AaTextPrimary,
+                                    text = stringResource(R.string.movies_season_number, season),
+                                    color = if (selected) Color.Black else colors.textPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1107,14 +1128,15 @@ private fun EpisodeRowCard(
     isHighlighted: Boolean,
     onClick: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isHighlighted) AaAmberAlt.copy(alpha = 0.16f) else AaPanelHigh)
+            .background(if (isHighlighted) AaAmberAlt.copy(alpha = 0.16f) else colors.elevatedSurface)
             .border(
                 width = 1.dp,
-                color = if (isHighlighted) AaAmberAlt else AaBorder,
+                color = if (isHighlighted) AaAmberAlt else colors.hairlineBorder,
                 shape = RoundedCornerShape(10.dp)
             )
             .clickable(onClick = onClick)
@@ -1126,12 +1148,12 @@ private fun EpisodeRowCard(
             modifier = Modifier
                 .size(width = 38.dp, height = 28.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (isHighlighted) AaAmberAlt else AaPanel),
+                .background(if (isHighlighted) AaAmberAlt else colors.cardSurface),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "E${episode.episode}",
-                color = if (isHighlighted) Color.Black else AaTextPrimary,
+                color = if (isHighlighted) Color.Black else colors.textPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold
             )
@@ -1140,7 +1162,7 @@ private fun EpisodeRowCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = episode.title,
-                color = AaTextPrimary,
+                color = colors.textPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -1148,7 +1170,7 @@ private fun EpisodeRowCard(
             )
             if (isHighlighted) {
                 Text(
-                    text = "Riprendi da qui",
+                    text = stringResource(R.string.movies_resume_here),
                     color = AaAmberAlt,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -1158,8 +1180,8 @@ private fun EpisodeRowCard(
 
         Icon(
             imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Riproduci",
-            tint = if (isHighlighted) AaAmberAlt else AaTextSecondary,
+            contentDescription = stringResource(R.string.action_play),
+            tint = if (isHighlighted) AaAmberAlt else colors.textSecondary,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -1170,6 +1192,7 @@ private fun ErrorSectionBox(
     message: String,
     onRetry: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1177,7 +1200,7 @@ private fun ErrorSectionBox(
     ) {
         Text(
             text = message,
-            color = AaTextSecondary,
+            color = colors.textSecondary,
             fontSize = 12.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
@@ -1187,7 +1210,7 @@ private fun ErrorSectionBox(
             colors = ButtonDefaults.buttonColors(containerColor = AaAmber),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
         ) {
-            Text("Riprova", color = Color.White, fontSize = 12.sp)
+            Text(stringResource(R.string.action_retry), color = Color.White, fontSize = 12.sp)
         }
     }
 }

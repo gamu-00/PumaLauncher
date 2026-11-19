@@ -36,43 +36,53 @@ fun OpenLauncherTheme(
     appFont: AppFont  = AppFont.JETBRAINS_MONO,
     isDayMode: Boolean = false,
     useCustomBg: Boolean = false,
+    cockpitColors: CockpitColors = if (isDayMode) LightCockpitPalette else DarkCockpitPalette,
     content: @Composable () -> Unit
 ) {
     // Contrast-aware: the accent is user-chosen and can be any brightness,
     // so a fixed onPrimary (white) goes invisible on light accents
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
-    val colorScheme = if (isDayMode) lightColorScheme(
-        primary          = accent,
-        onPrimary        = onAccent,
-        secondary        = accent.copy(alpha = 0.7f),
-        onSecondary      = onAccent,
-        tertiary         = accent.copy(alpha = 0.5f),
-        background       = if (useCustomBg) background else Color(0xFFEEEEEE),
-        surface          = Color(0xFFFFFFFF),
-        onBackground     = Color(0xFF111111),
-        onSurface        = Color(0xFF111111),
-        surfaceVariant   = Color(0xFFF5F5F5),
-        onSurfaceVariant = Color(0xFF666666),
-        outline          = Color(0xFFCCCCCC)
+    val colorScheme = if (cockpitColors.isLight) lightColorScheme(
+        primary              = accent,
+        onPrimary            = onAccent,
+        secondary            = accent.copy(alpha = 0.7f),
+        onSecondary          = onAccent,
+        tertiary             = accent.copy(alpha = 0.5f),
+        background           = cockpitColors.canvasBackground,
+        surface              = cockpitColors.cardSurface,
+        surfaceContainer     = cockpitColors.cardSurface,
+        surfaceContainerHigh = cockpitColors.elevatedSurface,
+        onBackground         = cockpitColors.textPrimary,
+        onSurface            = cockpitColors.textPrimary,
+        surfaceVariant       = cockpitColors.elevatedSurface,
+        onSurfaceVariant     = cockpitColors.textSecondary,
+        outline              = cockpitColors.hairlineBorder,
+        outlineVariant       = cockpitColors.hairlineBorder,
+        error                = cockpitColors.dangerContent
     ) else darkColorScheme(
-        primary          = accent,
-        onPrimary        = onAccent,
-        secondary        = accent.copy(alpha = 0.7f),
-        onSecondary      = onAccent,
-        tertiary         = accent.copy(alpha = 0.5f),
-        background       = background,
-        surface          = AaPanel,
-        surfaceContainer = AaPanel,
-        surfaceContainerHigh = AaPanelHigh,
-        primaryContainer = AaPanelHigh,
-        onPrimaryContainer = accent,
-        onBackground     = textColor,
-        onSurface        = textColor,
-        surfaceVariant   = DimSurface,
-        onSurfaceVariant = TextMuted,
-        outline          = DividerGray
+        primary              = accent,
+        onPrimary            = onAccent,
+        secondary            = accent.copy(alpha = 0.7f),
+        onSecondary          = onAccent,
+        tertiary             = accent.copy(alpha = 0.5f),
+        background           = cockpitColors.canvasBackground,
+        surface              = cockpitColors.cardSurface,
+        surfaceContainer     = cockpitColors.cardSurface,
+        surfaceContainerHigh = cockpitColors.elevatedSurface,
+        primaryContainer     = cockpitColors.elevatedSurface,
+        onPrimaryContainer   = accent,
+        onBackground         = cockpitColors.textPrimary,
+        onSurface            = cockpitColors.textPrimary,
+        surfaceVariant       = cockpitColors.elevatedSurface,
+        onSurfaceVariant     = cockpitColors.textSecondary,
+        outline              = cockpitColors.hairlineBorder,
+        outlineVariant       = cockpitColors.hairlineBorder,
+        error                = cockpitColors.dangerContent
     )
-    CompositionLocalProvider(LocalDayMode provides isDayMode) {
+    CompositionLocalProvider(
+        LocalDayMode provides cockpitColors.isLight,
+        LocalCockpitColors provides cockpitColors
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography  = launcherTypography(fontBold, textScale, appFont.toFontFamily()),

@@ -19,6 +19,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -35,13 +36,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
-import com.openlauncher.app.data.DefaultShortcutIcon
+import com.openlauncher.app.R
 import com.openlauncher.app.model.NavDestination
 import com.openlauncher.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -51,15 +53,6 @@ import java.util.Locale
 
 val SIDEBAR_WIDTH = 80.dp
 private val SLOT_SIZE = 52.dp
-
-const val PKG_MAPS = "com.google.android.apps.maps"
-const val PKG_NETFLIX = "com.netflix.mediaclient"
-const val PKG_CAR_STOCK = "com.carletter.car"
-val DEFAULT_SLOT_PACKAGES = listOf(PKG_MAPS, PKG_NETFLIX, PKG_CAR_STOCK)
-
-/** Effective package of a quick slot: the user's choice, else the preset. */
-fun slotPackage(userPackage: String?, slot: Int): String =
-    if (!userPackage.isNullOrEmpty()) userPackage else DEFAULT_SLOT_PACKAGES.getOrElse(slot) { "" }
 
 /**
  * Mini AA Nav Rail (80dp): digital clock (long-press = cold-boot settings), Wi-Fi/GPS
@@ -83,12 +76,20 @@ fun Sidebar(
     coldBootAutoLaunch: Boolean = false,
     coldBootDelaySeconds: Int = 4,
     onUpdateColdBoot: (Boolean, Int) -> Unit = { _, _ -> },
+    isCompactHeight: Boolean = false,
+    homePressTrigger: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
     var gpsOn by remember { mutableStateOf(true) }
     var showClockSettings by remember { mutableStateOf(false) }
+
+    LaunchedEffect(homePressTrigger) {
+        if (homePressTrigger > 0) {
+            showClockSettings = false
+        }
+    }
     LaunchedEffect(Unit) {
         var tick = 0
         while (true) {
@@ -106,56 +107,77 @@ fun Sidebar(
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     BoxWithConstraints(
-        modifier = modifier
-            .widthIn(min = 68.dp, max = 104.dp)
-            .fillMaxHeight()
+        modifier = modifier.fillMaxHeight()
     ) {
-        val uiScale = (maxHeight.value / 480f).coerceIn(0.85f, 1.35f)
-        val outerPad = (6f * uiScale).dp
-        val verticalPad = (10f * uiScale).dp
-        val itemGap = (8f * uiScale).dp
-        val moduleShape = RoundedCornerShape((18f * uiScale).dp)
-        val cardShape = RoundedCornerShape((12f * uiScale).dp)
-        val slotSize = (maxWidth * 0.68f).coerceIn(44.dp, (56f * uiScale).dp)
+        val compact = isCompactHeight || maxHeight < 520.dp
+        val heightScale = (maxHeight.value / 520f).coerceIn(0.65f, 1.25f)
+        val outerPad = if (compact) (4f * heightScale).dp.coerceAtLeast(3.dp) else (6f * heightScale).dp
+        val verticalPad = if (compact) (5f * heightScale).dp.coerceAtLeast(4.dp) else (10f * heightScale).dp
+        val itemGap = if (compact) (4f * heightScale).dp.coerceAtLeast(3.dp) else (8f * heightScale).dp
+        val moduleShape = CockpitCardShape
+        val cardShape = RoundedCornerShape((10f * heightScale).dp.coerceIn(8.dp, 14.dp))
 
+        val hourSp = if (compact) (20f * heightScale).coerceIn(15f, 22f).sp else (26f * heightScale).coerceIn(22f, 30f).sp
+        val minSp = if (compact) (17f * heightScale).coerceIn(13f, 19f).sp else (22f * heightScale).coerceIn(18f, 26f).sp
+        val statusIconSize = if (compact) (14f * heightScale).dp.coerceIn(12.dp, 16.dp) else (18f * heightScale).dp.coerceIn(16.dp, 22.dp)
+
+        val innerHeight = (maxHeight - outerPad * 2 - verticalPad * 2).coerceAtLeast(180.dp)
+        val headerReserve = if (compact) 64.dp else 96.dp
+        val totalSlots = (railPackages.size + 2).coerceAtLeast(2)
+        val slotBudget = ((innerHeight - headerReserve - itemGap * (totalSlots + 1)) / totalSlots)
+        val maxWidthSlot = (maxWidth - outerPad * 2 - 10.dp).coerceAtLeast(30.dp)
+        val slotSize = minOf(slotBudget, maxWidthSlot).coerceIn(
+            if (compact) 30.dp else 44.dp,
+            if (compact) 46.dp else 56.dp
+        )
+
+        val colors = LocalCockpitColors.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(outerPad)
                 .clip(moduleShape)
-                .background(AaPanel)
-                .border(1.dp, AaBorder, moduleShape)
+                .background(colors.dockSurface)
+                .border(1.dp, colors.cardBorderBrush, moduleShape)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(vertical = verticalPad),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 val time = timeFmt.format(now)
+                val tabularStyle = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 2.dp),
                     modifier = Modifier
                         .clip(cardShape)
                         .combinedClickable(onClick = {}, onLongClick = { showClockSettings = true })
-                        .padding(horizontal = (4f * uiScale).dp, vertical = (2f * uiScale).dp)
+                        .padding(horizontal = (6f * heightScale).dp, vertical = (4f * heightScale).dp)
                 ) {
                     Text(
                         text = time.substringBefore(':'),
-                        color = AaTextPrimary,
-                        fontSize = (28f * uiScale).sp,
+                        style = tabularStyle,
+                        color = colors.textPrimary,
+                        fontSize = hourSp,
+                        lineHeight = hourSp * 1.0f,
+                        letterSpacing = 0.5.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
                     Text(
                         text = time.substringAfter(':'),
+                        style = tabularStyle,
                         color = accent,
-                        fontSize = (24f * uiScale).sp,
+                        fontSize = minSp,
+                        lineHeight = minSp * 1.0f,
+                        letterSpacing = 0.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
                 }
-                Spacer(Modifier.height(itemGap))
+                Spacer(Modifier.height(if (compact) 6.dp else 8.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemGap),
                     verticalAlignment = Alignment.CenterVertically
@@ -166,14 +188,14 @@ fun Sidebar(
                         else   -> Icons.Default.WifiOff
                     }
                     Icon(
-                        netIcon, "Network",
-                        tint = if (isWifi || isData) accent else AaTextSecondary.copy(alpha = 0.5f),
-                        modifier = Modifier.size((18f * uiScale).dp)
+                        netIcon, stringResource(R.string.sidebar_network),
+                        tint = if (isWifi || isData) accent else colors.textSecondary.copy(alpha = 0.55f),
+                        modifier = Modifier.size(statusIconSize)
                     )
                     Icon(
-                        if (gpsOn) Icons.Default.GpsFixed else Icons.Default.GpsOff, "GPS",
-                        tint = if (gpsOn) accent else AaTextSecondary.copy(alpha = 0.5f),
-                        modifier = Modifier.size((18f * uiScale).dp)
+                        if (gpsOn) Icons.Default.GpsFixed else Icons.Default.GpsOff, stringResource(R.string.sidebar_gps),
+                        tint = if (gpsOn) accent else colors.textSecondary.copy(alpha = 0.55f),
+                        modifier = Modifier.size(statusIconSize)
                     )
                 }
 
@@ -188,6 +210,7 @@ fun Sidebar(
                         accent = accent,
                         slotSize = slotSize,
                         cardShape = cardShape,
+                        homePressTrigger = homePressTrigger,
                         onClick = { onRailClick(pkg) },
                         onTogglePin = {
                             onTogglePin(pkg)
@@ -200,13 +223,13 @@ fun Sidebar(
                 Spacer(Modifier.weight(1f))
 
                 val drawerActive = currentDest == NavDestination.APP_LIBRARY
-                RailButton(Icons.Default.Apps, "App Drawer", drawerActive, accent, slotSize, cardShape) {
+                RailButton(Icons.Default.Apps, stringResource(R.string.sidebar_app_drawer), drawerActive, accent, slotSize, cardShape) {
                     val nextDest = if (drawerActive) NavDestination.HOME else NavDestination.APP_LIBRARY
                     onNavigate(nextDest)
                 }
                 Spacer(Modifier.height(itemGap))
                 val settingsActive = currentDest == NavDestination.SETTINGS
-                RailButton(Icons.Default.Settings, "Impostazioni", settingsActive, accent, slotSize, cardShape) {
+                RailButton(Icons.Default.Settings, stringResource(R.string.nav_settings), settingsActive, accent, slotSize, cardShape) {
                     val nextDest = if (settingsActive) NavDestination.HOME else NavDestination.SETTINGS
                     onNavigate(nextDest)
                 }
@@ -241,18 +264,24 @@ private fun RailButton(
     cardShape: RoundedCornerShape = AaCardShape,
     onClick: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     val activeContentColor = if (accent.luminance() > 0.5f) Color.Black else Color.White
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(slotSize)
-            .heightIn(min = 44.dp)
             .clip(cardShape)
-            .background(if (active) accent else AaPanelHigh)
-            .border(1.dp, if (active) accent else AaBorder, cardShape)
+            .background(if (active) accent else colors.elevatedSurface)
+            .then(
+                when {
+                    active -> Modifier.border(1.dp, accent, cardShape)
+                    colors.isLight -> Modifier.border(1.dp, colors.hairlineBorder, cardShape)
+                    else -> Modifier.border(1.dp, colors.cardBorderBrush, cardShape)
+                }
+            )
             .clickable(onClick = onClick)
     ) {
-        Icon(icon, label, tint = if (active) activeContentColor else AaTextPrimary, modifier = Modifier.size(slotSize * 0.5f))
+        Icon(icon, label, tint = if (active) activeContentColor else colors.textPrimary, modifier = Modifier.size(slotSize * 0.5f))
     }
 }
 
@@ -265,13 +294,15 @@ private fun ColdBootSettingsDialog(
     onOpenFullSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .width(380.dp)
                 .clip(AaModuleShape)
-                .background(AaPanelHigh)
+                .background(colors.cardSurface)
+                .border(1.dp, colors.hairlineBorder, AaModuleShape)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -281,8 +312,8 @@ private fun ColdBootSettingsDialog(
             ) {
                 Icon(Icons.Default.RocketLaunch, null, tint = accent, modifier = Modifier.size(24.dp))
                 Text(
-                    text = "Impostazioni Cold-Boot",
-                    color = Color.White,
+                    text = stringResource(R.string.cold_boot_dialog_title),
+                    color = colors.textPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -295,14 +326,14 @@ private fun ColdBootSettingsDialog(
             ) {
                 Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
-                        text = "Avvio automatico a freddo",
-                        color = Color.White,
+                        text = stringResource(R.string.cold_boot_auto_launch),
+                        color = colors.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Lancia Google Maps nel riquadro sinistro all'avvio",
-                        color = Color.White.copy(alpha = 0.6f),
+                        text = stringResource(R.string.cold_boot_auto_launch_desc),
+                        color = colors.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -311,7 +342,10 @@ private fun ColdBootSettingsDialog(
                     onCheckedChange = { onUpdate(it, delaySeconds) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = onAccent,
-                        checkedTrackColor = accent
+                        checkedTrackColor = accent,
+                        uncheckedThumbColor = colors.textSecondary,
+                        uncheckedTrackColor = colors.elevatedSurface,
+                        uncheckedBorderColor = colors.hairlineBorder
                     )
                 )
             }
@@ -323,8 +357,8 @@ private fun ColdBootSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Ritardo avvio (attesa GPS e rete)",
-                        color = Color.White.copy(alpha = 0.85f),
+                        text = stringResource(R.string.cold_boot_delay_dialog),
+                        color = colors.textPrimary,
                         fontSize = 13.sp
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -332,11 +366,11 @@ private fun ColdBootSettingsDialog(
                             onClick = { if (delaySeconds > 1) onUpdate(enabled, delaySeconds - 1) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.Remove, "Meno", tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Remove, stringResource(R.string.sidebar_decrease), tint = colors.textPrimary, modifier = Modifier.size(16.dp))
                         }
                         Text(
                             text = "${delaySeconds}s",
-                            color = Color.White,
+                            color = colors.textPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 6.dp)
@@ -345,7 +379,7 @@ private fun ColdBootSettingsDialog(
                             onClick = { if (delaySeconds < 15) onUpdate(enabled, delaySeconds + 1) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.Add, "Piu", tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Add, stringResource(R.string.sidebar_increase), tint = colors.textPrimary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -356,7 +390,8 @@ private fun ColdBootSettingsDialog(
                     steps = 13,
                     colors = SliderDefaults.colors(
                         thumbColor = accent,
-                        activeTrackColor = accent
+                        activeTrackColor = accent,
+                        inactiveTrackColor = colors.hairlineBorder
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -368,15 +403,15 @@ private fun ColdBootSettingsDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onOpenFullSettings) {
-                    Icon(Icons.Default.Settings, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Settings, null, tint = colors.textSecondary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Tutte le impostazioni", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                    Text(stringResource(R.string.cold_boot_all_settings), color = colors.textSecondary, fontSize = 13.sp)
                 }
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = accent)
                 ) {
-                    Text("Chiudi", color = onAccent, fontSize = 13.sp)
+                    Text(stringResource(R.string.action_close), color = onAccent, fontSize = 13.sp)
                 }
             }
         }
@@ -392,27 +427,39 @@ private fun RailSlot(
     accent: Color,
     slotSize: androidx.compose.ui.unit.Dp = SLOT_SIZE,
     cardShape: RoundedCornerShape = AaCardShape,
+    homePressTrigger: Int = 0,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
     onReplace: () -> Unit
 ) {
+    val colors = LocalCockpitColors.current
     var menuOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(homePressTrigger) {
+        if (homePressTrigger > 0) {
+            menuOpen = false
+        }
+    }
     Box {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(slotSize)
-                .heightIn(min = 44.dp)
                 .clip(cardShape)
-                .background(AaPanelHigh)
-                .border(1.dp, if (pinned) accent else AaBorder, cardShape)
+                .background(colors.elevatedSurface)
+                .then(
+                    when {
+                        pinned -> Modifier.border(1.dp, accent, cardShape)
+                        colors.isLight -> Modifier.border(1.dp, colors.hairlineBorder, cardShape)
+                        else -> Modifier.border(1.dp, colors.cardBorderBrush, cardShape)
+                    }
+                )
                 .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
         ) {
             if (drawable != null) {
                 val bmp = remember(pkg, drawable) { drawable.toBitmap(96, 96).asImageBitmap() }
                 Image(bitmap = bmp, contentDescription = pkg, modifier = Modifier.size(slotSize * 0.65f))
             } else {
-                Icon(Icons.Default.Apps, pkg, tint = AaTextPrimary, modifier = Modifier.size(slotSize * 0.54f))
+                Icon(Icons.Default.Apps, pkg, tint = colors.textPrimary, modifier = Modifier.size(slotSize * 0.54f))
             }
             if (pinned) {
                 Box(
@@ -429,56 +476,18 @@ private fun RailSlot(
         DropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
-            containerColor = AaPanelHigh
+            containerColor = colors.cardSurface
         ) {
             DropdownMenuItem(
-                text = { Text(if (pinned) "Rimuovi dai fissati" else "Fissa", color = AaTextPrimary) },
+                text = { Text(stringResource(if (pinned) R.string.sidebar_unpin else R.string.sidebar_pin), color = colors.textPrimary) },
                 leadingIcon = { Icon(Icons.Default.PushPin, null, tint = accent) },
                 onClick = { menuOpen = false; onTogglePin() }
             )
             DropdownMenuItem(
-                text = { Text("Sostituisci app", color = AaTextPrimary) },
+                text = { Text(stringResource(R.string.sidebar_replace_app), color = colors.textPrimary) },
                 leadingIcon = { Icon(Icons.Default.SwapHoriz, null, tint = accent) },
                 onClick = { menuOpen = false; onReplace() }
             )
         }
     }
-}
-
-fun DefaultShortcutIcon.toIcon(): ImageVector = when (this) {
-    // Navigation & vehicle
-    DefaultShortcutIcon.RADIO       -> Icons.Default.Radio
-    DefaultShortcutIcon.CAMERA      -> Icons.Default.CameraAlt
-    DefaultShortcutIcon.PHONE       -> Icons.Default.Phone
-    DefaultShortcutIcon.MAP         -> Icons.Default.Map
-    DefaultShortcutIcon.NAVIGATION  -> Icons.Default.Navigation
-    DefaultShortcutIcon.CAR         -> Icons.Default.DirectionsCar
-    DefaultShortcutIcon.GAS_STATION -> Icons.Default.LocalGasStation
-    DefaultShortcutIcon.DASHBOARD   -> Icons.Default.Speed
-    // Audio & media
-    DefaultShortcutIcon.MUSIC       -> Icons.Default.MusicNote
-    DefaultShortcutIcon.SPEAKER     -> Icons.Default.Speaker
-    DefaultShortcutIcon.HEADSET     -> Icons.Default.Headset
-    DefaultShortcutIcon.EQUALIZER   -> Icons.Default.Equalizer
-    DefaultShortcutIcon.VOLUME_UP   -> Icons.Default.VolumeUp
-    // Connectivity
-    DefaultShortcutIcon.BLUETOOTH   -> Icons.Default.Bluetooth
-    DefaultShortcutIcon.WIFI        -> Icons.Default.Wifi
-    // Lighting & climate
-    DefaultShortcutIcon.LIGHTBULB   -> Icons.Default.Lightbulb
-    DefaultShortcutIcon.BRIGHTNESS  -> Icons.Default.BrightnessHigh
-    DefaultShortcutIcon.AC          -> Icons.Default.AcUnit
-    DefaultShortcutIcon.THERMOSTAT  -> Icons.Default.Thermostat
-    // General utility
-    DefaultShortcutIcon.TV          -> Icons.Default.Tv
-    DefaultShortcutIcon.VIDEOCAM    -> Icons.Default.Videocam
-    DefaultShortcutIcon.STAR        -> Icons.Default.Star
-    DefaultShortcutIcon.MESSAGE     -> Icons.Default.Message
-    DefaultShortcutIcon.TIMER       -> Icons.Default.Timer
-    DefaultShortcutIcon.LOCK        -> Icons.Default.Lock
-    DefaultShortcutIcon.SETTINGS    -> Icons.Default.Settings
-    DefaultShortcutIcon.FAVORITE    -> Icons.Default.Favorite
-    // Web / location
-    DefaultShortcutIcon.GLOBE       -> Icons.Default.Language
-    DefaultShortcutIcon.NONE        -> Icons.Default.Apps
 }
