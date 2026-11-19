@@ -3,6 +3,8 @@
 <img width="1376" height="768" alt="Puma_Launcher_app" src="https://github.com/user-attachments/assets/fac2cba2-39ba-49c1-94f2-cab7480796a9" />
 
 
+
+
 **An automotive-first Android launcher designed for landscape head units and AI Boxes.**
 
 Forked from [OpenLauncher](https://github.com/OpenLauncherTeam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes). It combines split-screen navigation, an ad-free hybrid YouTube player, and a unified media station inside a distraction-reduced cockpit UI.
