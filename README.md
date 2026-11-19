@@ -1,32 +1,6 @@
 # PumaLauncher
 
-<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <group
-        android:translateX="-30"
-        android:translateY="-29">
-        <path android:fillColor="#64748B" android:pathData="M34,45 L32,37 L37,34 L43,36 Z" />
-        <path android:fillColor="#64748B" android:pathData="M74,45 L76,37 L71,34 L65,36 Z" />
-        <path android:fillColor="#475569" android:pathData="M36,61 L45,56 L41,60 L44,65 L47,72 L41,69 Z" />
-        <path android:fillColor="#475569" android:pathData="M72,61 L63,56 L67,60 L64,65 L61,72 L67,69 Z" />
-        <path android:fillColor="#94A3B8" android:pathData="M44,65 L54,66 L64,65 L61,72 L47,72 Z" />
-        <path android:fillColor="#94A3B8" android:pathData="M43,36 L48,45 L38,48 L34,45 Z" />
-        <path android:fillColor="#94A3B8" android:pathData="M65,36 L60,45 L70,48 L74,45 Z" />
-        <path android:fillColor="#CBD5E1" android:pathData="M34,45 L38,48 L45,56 L36,61 L31,53 Z" />
-        <path android:fillColor="#CBD5E1" android:pathData="M74,45 L70,48 L63,56 L72,61 L77,53 Z" />
-        <path android:fillColor="#F8FAFC" android:pathData="M43,36 L54,35 L65,36 L60,45 L54,44 L48,45 Z" />
-        <path android:fillColor="#F8FAFC" android:pathData="M48,45 L54,44 L60,45 L59,57 L49,57 Z" />
-        <path android:fillColor="#E2E8F0" android:pathData="M45,56 L49,57 L51.5,61 L54,62.5 L54,66 L44,65 L41,60 Z" />
-        <path android:fillColor="#E2E8F0" android:pathData="M63,56 L59,57 L56.5,61 L54,62.5 L54,66 L64,65 L67,60 Z" />
-        <path android:fillColor="#38BDF8" android:pathData="M38,48.5 L47.5,51.5 L45.5,54 L37.5,51 Z" />
-        <path android:fillColor="#38BDF8" android:pathData="M70,48.5 L60.5,51.5 L62.5,54 L70.5,51 Z" />
-        <path android:fillColor="#38BDF8" android:pathData="M49,57 L59,57 L56.5,61 L51.5,61 Z" />
-    </group>
-</vector>
+<img width="1376" height="768" alt="PumaLauncher_app" src="https://github.com/user-attachments/assets/b2542a72-9668-418e-a032-3f8b9c7bb702" />
 
 
 **An automotive-first Android launcher designed for landscape head units and AI Boxes.**
