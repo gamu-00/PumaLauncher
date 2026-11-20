@@ -2,6 +2,24 @@
 
 All notable changes to **PumaLauncher** are documented in this file.
 
+## [v0.1.2] - 2026-11-21
+
+### Automotive Vector Map & 3D Driving Perspective
+- **High-Contrast Vector Map Style (`AutomotiveMapStyle`)**: Added dedicated Day (*Cool Slate*) and Night (*Obsidian*) MapLibre vector styles with aggressive decluttering (hiding pedestrian paths, railways, parking lots, and minor POIs), compact highway/road shields, and tone-on-tone 3D building extrusions at zoom >= 15.
+- **Dynamic 3D Driving Tilt & Speed-Adaptive Zoom**: Smooth 45° camera pitch and speed-based zoom adjustments while in `FOLLOW` mode (`CameraMode.TRACKING_GPS`), returning to top-down 0° during free-look panning or route preview.
+
+### 3-Route Preview & Valhalla Routing
+- **Multi-Route Preview (`NavigationEngine`, `NativeNavigatorPanel`)**: Added interactive route preview comparing up to 3 Valhalla alternatives — **Fastest**, **Alternative**, and **Scenic** (avoiding highways/tolls and favoring hilly/scenic roads) — with toll badges and tap-on-map route selection.
+- **Split-Screen Adaptive Preview Card**: Tuned `RoutePreviewCard` sizing, spacing, and typography to fit cleanly inside the 8" landscape split-screen map panel without truncated labels or overlapping buttons.
+
+### Localization & Compact Settings UI
+- **Polish, Russian & Ukrainian Support**: Added complete localized string resources (`values-pl`, `values-ru`, `values-uk`) covering navigation, media, weather, settings, and onboarding, bringing total supported languages to **9**.
+- **YouTube, Media & TTS Language Priority**: Extended `YouTubeStreamExtractor`, `MediaStationRepository`, `MediaPlayerView`, and `NavigationEngine` to prioritize dubbed audio tracks, stream tags, Valhalla turn instructions, and TTS voice locale for Polish (`pl`), Russian (`ru`), and Ukrainian (`uk`).
+- **Compact Language Dropdown (`SettingsScreen`)**: Replaced the multi-row language grid with a single compact, touch-friendly dropdown menu featuring flag icons, language code badges, and native names styled for both Day and Night themes.
+
+### Build & Release
+- **R8 / ProGuard & Release Signing**: Added `-keep` rules for `AutomotiveMapStyle`, `RouteOptionType`, `RoutePreviewOption`, `AppLanguageManager`, and `AppLanguageOption` in `proguard-rules.pro`, bumped to `versionCode = 3` / `versionName = "0.1.2"`.
+
 ## [v0.1.1-beta] - 2026-11-20
 
 ### Navigation & GPS Engine
