@@ -2,7 +2,7 @@
 
 All notable changes to **PumaLauncher** are documented in this file.
 
-## [v0.1.2] - 2026-11-21
+## [v0.1.2-Beta] - 2026-11-21
 
 ### Automotive Vector Map & 3D Driving Perspective
 - **High-Contrast Vector Map Style (`AutomotiveMapStyle`)**: Added dedicated Day (*Cool Slate*) and Night (*Obsidian*) MapLibre vector styles with aggressive decluttering (hiding pedestrian paths, railways, parking lots, and minor POIs), compact highway/road shields, and tone-on-tone 3D building extrusions at zoom >= 15.
