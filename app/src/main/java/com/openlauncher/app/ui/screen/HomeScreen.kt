@@ -3,15 +3,28 @@ package com.openlauncher.app.ui.screen
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.GpsNotFixed
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.data.AppSettings
 import com.openlauncher.app.data.MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
@@ -190,136 +203,198 @@ fun HomeScreen(
     val maxRightPanelScaled = (maxRightPanelPhysical.value / effectiveUiScale).dp
     val maxRightPanelPx = with(baseDensity) { maxRightPanelPhysical.roundToPx() }
     val moduleShape = CockpitCardShape
+    var telemetryExpanded by remember { mutableStateOf(false) }
+    val speedKmh by navigationEngine.currentSpeedKmh.collectAsStateWithLifecycle()
 
-    Layout(
+    // NavLab: Fullscreen navigation map with accessible GPS telemetry & test controls HUD
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(top = outerPad, bottom = outerPad, end = outerPad),
-        content = {
-            // Child 0: Native MapLibre Turn-by-Turn Navigator
-            NativeNavigatorPanel(
-                accent = accent,
-                accentColorHex = settings.accentColorHex,
-                avoidTolls = settings.avoidTolls,
-                voiceGuidanceEnabled = settings.voiceGuidanceEnabled,
-                onToggleAvoidTolls = { enabled ->
-                    uiScope.launch {
-                        settingsRepo.updateSettings { it.copy(avoidTolls = enabled) }
-                    }
-                },
-                onToggleVoiceGuidance = { enabled ->
-                    uiScope.launch {
-                        settingsRepo.updateSettings { it.copy(voiceGuidanceEnabled = enabled) }
-                    }
-                },
-                isCompactHeight = isCompactHeight,
-                moduleShape = moduleShape,
-                homePressTrigger = homePressTrigger,
-                closeSearchTrigger = closeMapSearchTrigger,
-                locationPermissionTrigger = locationPermissionTrigger,
-                navigationEngine = navigationEngine,
-                isHomeVisible = isHomeVisible,
-                onSearchOverlayChanged = onMapSearchOpenChanged,
-                uiScale = effectiveUiScale
-            )
+            .padding(top = outerPad, bottom = outerPad, end = outerPad)
+    ) {
+        NativeNavigatorPanel(
+            accent = accent,
+            accentColorHex = settings.accentColorHex,
+            avoidTolls = settings.avoidTolls,
+            voiceGuidanceEnabled = settings.voiceGuidanceEnabled,
+            onToggleAvoidTolls = { enabled ->
+                uiScope.launch {
+                    settingsRepo.updateSettings { it.copy(avoidTolls = enabled) }
+                }
+            },
+            onToggleVoiceGuidance = { enabled ->
+                uiScope.launch {
+                    settingsRepo.updateSettings { it.copy(voiceGuidanceEnabled = enabled) }
+                }
+            },
+            isCompactHeight = isCompactHeight,
+            moduleShape = moduleShape,
+            homePressTrigger = homePressTrigger,
+            closeSearchTrigger = closeMapSearchTrigger,
+            locationPermissionTrigger = locationPermissionTrigger,
+            navigationEngine = navigationEngine,
+            isHomeVisible = isHomeVisible,
+            onSearchOverlayChanged = onMapSearchOpenChanged,
+            uiScale = effectiveUiScale,
+            modifier = Modifier.fillMaxSize()
+        )
 
-            // Child 1: Top/Upper Media Station Card (Movies & TV / YouTube / Contextual Weather)
-            MediaStationCard(
-                state = mediaStationState,
-                onStateChange = onMediaStationStateChange,
-                mediaStationViewModel = mediaStationViewModel,
-                showWeather = showWeatherInMediaHub,
-                weather = weatherData,
-                isWeatherLoading = weatherLoading,
-                accent = accent,
-                onRefreshWeather = { refreshWeather(true) },
-                onDismissWeather = { musicWeatherDismissed = true },
-                mediaPauseTimeoutMinutes = clampedPauseTimeoutMinutes,
-                onMediaPauseTimeoutChange = { minutes ->
-                    val clamped = minutes.coerceIn(
-                        MIN_MEDIA_PAUSE_TIMEOUT_MINUTES,
-                        MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
-                    )
-                    uiScope.launch {
-                        settingsRepo.updateSettings { it.copy(mediaPauseTimeoutMinutes = clamped) }
-                    }
-                },
-                isCompactHeight = isCompactHeight,
-                isHomeVisible = isHomeVisible,
-                cardShape = moduleShape,
-                modifier = Modifier.widthIn(max = maxRightPanelScaled)
-            )
+        NavLabTelemetryHud(
+            engine = navigationEngine,
+            speedKmh = speedKmh,
+            accent = accent,
+            expanded = telemetryExpanded,
+            onToggleExpanded = { telemetryExpanded = !telemetryExpanded },
+            onToggleAvoidTolls = {
+                val nextVal = !navigationEngine.avoidTolls
+                uiScope.launch { settingsRepo.updateSettings { it.copy(avoidTolls = nextVal) } }
+                navigationEngine.updateAvoidTolls(nextVal, recalculateIfActive = true)
+            },
+            onToggleVoiceGuidance = {
+                val nextVoice = !navigationEngine.voiceGuidanceEnabled
+                navigationEngine.setVoiceGuidance(nextVoice)
+                uiScope.launch { settingsRepo.updateSettings { it.copy(voiceGuidanceEnabled = nextVoice) } }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (isCompactHeight) 8.dp else 12.dp)
+                .zIndex(12f)
+        )
+    }
+}
 
-            // Child 2: Bottom Music Card (NowPlayingWidget / Contextual Weather)
+@Composable
+private fun NavLabTelemetryHud(
+    engine: NavigationEngine,
+    speedKmh: Int,
+    accent: Color,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onToggleAvoidTolls: () -> Unit,
+    onToggleVoiceGuidance: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalCockpitColors.current
+    val fixColor = if (engine.hasGpsFix) Color(0xFF22C55E) else Color(0xFFF59E0B)
+    val latText = String.format(java.util.Locale.US, "%.5f", engine.currentLat)
+    val lonText = String.format(java.util.Locale.US, "%.5f", engine.currentLon)
+    val bearingText = "${engine.currentBearing.roundToInt()}°"
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.glassPillSurface)
+            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onToggleExpanded)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .widthIn(max = maxRightPanelScaled)
-                    .clip(moduleShape)
-                    .background(colors.cardSurface)
-                    .border(1.dp, colors.cardBorderBrush, moduleShape)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(fixColor)
+            )
+            Icon(
+                imageVector = if (engine.hasGpsFix) Icons.Default.GpsFixed else Icons.Default.GpsNotFixed,
+                contentDescription = null,
+                tint = fixColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = if (engine.hasGpsFix) "GPS FIX" else "NO FIX",
+                color = fixColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "• $speedKmh km/h • HDG $bearingText",
+                color = colors.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        if (expanded) {
+            Text(
+                text = "LAT $latText  LON $lonText  |  ${if (engine.isMoving) "MOVING" else "STATIC"}  |  ${if (engine.isFollowingGps) "FOLLOW" else "FREE"}",
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+            val routeSummary = if (engine.activeRoute != null) {
+                "ROUTE: ${engine.remainingDistanceText} • ETA ${engine.etaText}"
+            } else {
+                "ROUTE: IDLE"
+            }
+            Text(
+                text = routeSummary,
+                color = if (engine.activeRoute != null) accent else colors.textSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                NowPlayingWidget(
-                    state = nowPlaying,
+                NavLabChip(
+                    label = if (engine.avoidTolls) "NO TOLLS: ON" else "NO TOLLS: OFF",
+                    active = engine.avoidTolls,
                     accent = accent,
-                    showWeather = showWeatherInNowPlaying,
-                    weather = weatherData,
-                    isWeatherLoading = weatherLoading,
-                    onRefreshWeather = { refreshWeather(true) },
-                    onDismissWeather = { videoWeatherDismissed = true },
-                    isCompactHeight = isCompactHeight,
-                    homePressTrigger = homePressTrigger,
-                    modifier = Modifier.fillMaxSize()
+                    onClick = onToggleAvoidTolls
                 )
-            }
-        }
-    ) { measurables, constraints ->
-        val totalW = constraints.maxWidth
-        val totalH = constraints.maxHeight
-
-        when (layoutMode) {
-            DashboardLayoutMode.PORTRAIT -> {
-                val availH = (totalH - gapPx).coerceAtLeast(2)
-                val mapH = (availH * 0.54f).roundToInt()
-                val mediaAreaH = (availH - mapH).coerceAtLeast(2)
-                val mediaAvailH = (mediaAreaH - gapPx).coerceAtLeast(2)
-                val stationH = (mediaAvailH * 0.58f).roundToInt()
-                val nowPlayingH = (mediaAvailH - stationH).coerceAtLeast(1)
-
-                val mapPlaceable = measurables[0].measure(Constraints.fixed(totalW, mapH))
-                val stationPlaceable = measurables[1].measure(Constraints.fixed(totalW, stationH))
-                val nowPlayingPlaceable = measurables[2].measure(Constraints.fixed(totalW, nowPlayingH))
-
-                layout(totalW, totalH) {
-                    mapPlaceable.placeRelative(0, 0)
-                    val mediaTopY = mapH + gapPx
-                    stationPlaceable.placeRelative(0, mediaTopY)
-                    nowPlayingPlaceable.placeRelative(0, mediaTopY + stationH + gapPx)
-                }
-            }
-
-            DashboardLayoutMode.ULTRAWIDE,
-            DashboardLayoutMode.LANDSCAPE_STANDARD -> {
-                val mapFraction = if (layoutMode == DashboardLayoutMode.ULTRAWIDE) 0.62f else 0.50f
-                val availW = (totalW - gapPx).coerceAtLeast(2)
-                val rawRightW = (availW * (1f - mapFraction)).roundToInt()
-                val rightW = rawRightW.coerceAtMost(maxRightPanelPx).coerceIn(1, (availW - 1).coerceAtLeast(1))
-                val mapW = (availW - rightW).coerceAtLeast(1)
-                val rightAvailH = (totalH - gapPx).coerceAtLeast(2)
-                val stationH = (rightAvailH * 0.58f).roundToInt()
-                val nowPlayingH = (rightAvailH - stationH).coerceAtLeast(1)
-
-                val mapPlaceable = measurables[0].measure(Constraints.fixed(mapW, totalH))
-                val stationPlaceable = measurables[1].measure(Constraints.fixed(rightW, stationH))
-                val nowPlayingPlaceable = measurables[2].measure(Constraints.fixed(rightW, nowPlayingH))
-
-                layout(totalW, totalH) {
-                    mapPlaceable.placeRelative(0, 0)
-                    val rightX = mapW + gapPx
-                    stationPlaceable.placeRelative(rightX, 0)
-                    nowPlayingPlaceable.placeRelative(rightX, stationH + gapPx)
+                NavLabChip(
+                    label = if (engine.voiceGuidanceEnabled) "TTS: ON" else "TTS: OFF",
+                    active = engine.voiceGuidanceEnabled,
+                    accent = accent,
+                    onClick = onToggleVoiceGuidance
+                )
+                if (engine.activeRoute != null) {
+                    NavLabChip(
+                        label = "STOP NAV",
+                        active = true,
+                        accent = colors.dangerContent,
+                        onClick = { engine.stopNavigation() }
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NavLabChip(
+    label: String,
+    active: Boolean,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    val colors = LocalCockpitColors.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) accent.copy(alpha = 0.22f) else colors.elevatedSurface)
+            .border(1.dp, if (active) accent else colors.hairlineBorder, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = label,
+            color = if (active) accent else colors.textSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

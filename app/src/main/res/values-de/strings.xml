@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App & Manifest -->
-    <string name="app_name">Puma Launcher</string>
+    <string name="app_name">PumaNav Lab</string>
     <string name="media_label">Puma Launcher Media</string>
 
     <!-- Common Actions -->
@@ -101,6 +101,14 @@
     <string name="nav_avoid_tolls">Maut vermeiden</string>
     <string name="nav_searching">Suche läuft...</string>
     <string name="nav_start_navigation">Navigation starten</string>
+    <string name="nav_preview_calculating">Routen werden berechnet...</string>
+    <string name="nav_preview_fastest">Schnellste</string>
+    <string name="nav_preview_alternative">Alternative</string>
+    <string name="nav_preview_scenic">Panorama</string>
+    <string name="nav_preview_toll">Maut</string>
+    <string name="nav_preview_no_toll">Mautfrei</string>
+    <string name="nav_preview_start_cta">NAVIGATION STARTEN</string>
+    <string name="nav_preview_cancel">Abbrechen</string>
     <string name="nav_no_results">Keine Ergebnisse gefunden</string>
     <string name="nav_network_error">Netzwerkfehler</string>
     <string name="nav_route_error">Route konnte nicht berechnet werden</string>

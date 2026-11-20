@@ -3,6 +3,7 @@ package com.openlauncher.app.ui.screen
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color as AndroidColor
+import android.graphics.RectF
 import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -67,6 +68,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.LocationComponentOptions
 import org.maplibre.android.location.OnCameraTrackingChangedListener
@@ -86,56 +88,32 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val NAV_LOG_TAG = "PumaNav"
-private const val DARK_STYLE_URI = "https://tiles.openfreemap.org/styles/dark"
-private const val LIGHT_STYLE_URI = "https://tiles.openfreemap.org/styles/positron"
-
-private const val FALLBACK_DARK_STYLE_JSON = """
-{
-  "version": 8,
-  "name": "PumaDarkFallback",
-  "sources": {},
-  "layers": [
-    {
-      "id": "background",
-      "type": "background",
-      "paint": {
-        "background-color": "#111318"
-      }
-    }
-  ]
-}
-"""
-
-private const val FALLBACK_LIGHT_STYLE_JSON = """
-{
-  "version": 8,
-  "name": "PumaLightFallback",
-  "sources": {},
-  "layers": [
-    {
-      "id": "background",
-      "type": "background",
-      "paint": {
-        "background-color": "#F2F3F0"
-      }
-    }
-  ]
-}
-"""
 
 private const val SOURCE_ROUTE_TRAVELED = "puma-route-traveled-source"
 private const val LAYER_ROUTE_TRAVELED_CASING = "puma-route-traveled-casing-layer"
 private const val LAYER_ROUTE_TRAVELED = "puma-route-traveled-layer"
+private const val SOURCE_ROUTE_ALTS = "puma-route-alts-source"
+private const val LAYER_ROUTE_ALTS_CASING = "puma-route-alts-casing-layer"
+private const val LAYER_ROUTE_ALTS = "puma-route-alts-layer"
 private const val SOURCE_ROUTE = "puma-route-source"
 private const val LAYER_ROUTE_CASING = "puma-route-casing-layer"
 private const val LAYER_ROUTE = "puma-route-layer"
 private const val SOURCE_DEST = "puma-dest-source"
 private const val LAYER_DEST_DOT = "puma-dest-dot-layer"
 private const val DRIVING_ZOOM = 16.5
-private const val DRIVING_TILT = 40.0
+private const val DRIVING_TILT = 45.0
 private const val STATIONARY_TILT = 0.0
+
+private fun dynamicDrivingZoom(speedKmh: Int, hasActiveRoute: Boolean): Double = when {
+    speedKmh >= 100 -> 14.8
+    speedKmh >= 70 -> 15.5
+    speedKmh >= 40 -> 16.1
+    hasActiveRoute || speedKmh > 0 -> 16.6
+    else -> DRIVING_ZOOM
+}
 
 @SuppressLint("ClickableViewAccessibility")
 @Composable
@@ -189,12 +167,15 @@ fun NativeNavigatorPanel(
     var trackingListenerAttached by remember { mutableStateOf(false) }
     var cameraBearing by remember { mutableFloatStateOf(0f) }
     var mapHeightPx by remember { mutableIntStateOf(0) }
+    var previewCardHeightPx by remember { mutableIntStateOf(0) }
 
     val latestIsLight by rememberUpdatedState(isLightTheme)
     val latestAccentHex by rememberUpdatedState(accentColorHex)
     val latestActiveRoute by rememberUpdatedState(engine.activeRoute)
     val latestTraveledPoints by rememberUpdatedState(engine.traveledRoutePoints)
     val latestRemainingPoints by rememberUpdatedState(engine.remainingRoutePoints)
+    val latestPreviewOptions by rememberUpdatedState(engine.previewOptions)
+    val latestSelectedPreviewIndex by rememberUpdatedState(engine.selectedPreviewIndex)
     val latestStyleReady by rememberUpdatedState(styleReady)
     val latestMapHeightPx by rememberUpdatedState(mapHeightPx)
 
@@ -229,9 +210,13 @@ fun NativeNavigatorPanel(
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             mapLibreMap?.let { map ->
-                recenterCamera(map, engine, latestMapHeightPx)
+                if (!engine.isRoutePreview) {
+                    recenterCamera(map, engine, latestMapHeightPx)
+                }
             } ?: run {
-                engine.isFollowingGps = true
+                if (!engine.isRoutePreview) {
+                    engine.isFollowingGps = true
+                }
             }
         }
     }
@@ -250,7 +235,11 @@ fun NativeNavigatorPanel(
         val options = MapLibreMapOptions.createFromAttributes(context, null)
             .textureMode(true)
         MapView(context, options).apply {
-            setBackgroundColor(AndroidColor.parseColor(if (isLightTheme) "#F2F3F0" else "#111318"))
+            setBackgroundColor(
+                AndroidColor.parseColor(
+                    if (isLightTheme) AutomotiveMapStyle.DAY_BG_HEX else AutomotiveMapStyle.NIGHT_BG_HEX
+                )
+            )
             onCreate(null)
         }
     }
@@ -314,6 +303,9 @@ fun NativeNavigatorPanel(
     val activeRoute = engine.activeRoute
     val traveledRoutePoints = engine.traveledRoutePoints
     val remainingRoutePoints = engine.remainingRoutePoints
+    val isRoutePreview = engine.isRoutePreview
+    val previewOptions = engine.previewOptions
+    val selectedPreviewIndex = engine.selectedPreviewIndex
 
     // Stop GNSS tracking if an active route completes while app is backgrounded
     LaunchedEffect(activeRoute) {
@@ -322,7 +314,7 @@ fun NativeNavigatorPanel(
         }
     }
 
-    // Synchronize MapLibre style URI with active Day/Night theme while preserving camera & route
+    // Synchronize MapLibre automotive vector style with active Day/Night theme while preserving camera & route
     LaunchedEffect(mapLibreMap, isLightTheme) {
         val map = mapLibreMap ?: return@LaunchedEffect
         if (appliedStyleIsLight == isLightTheme) return@LaunchedEffect
@@ -331,20 +323,24 @@ fun NativeNavigatorPanel(
         val preservedCamera = if (isThemeSwitch) map.cameraPosition else null
         appliedStyleIsLight = isLightTheme
         styleReady = false
-        mapView.setBackgroundColor(AndroidColor.parseColor(if (isLightTheme) "#F2F3F0" else "#111318"))
+        mapView.setBackgroundColor(
+            AndroidColor.parseColor(
+                if (isLightTheme) AutomotiveMapStyle.DAY_BG_HEX else AutomotiveMapStyle.NIGHT_BG_HEX
+            )
+        )
 
-        val targetUri = if (isLightTheme) LIGHT_STYLE_URI else DARK_STYLE_URI
-        map.setStyle(targetUri) { loadedStyle ->
+        val styleJson = AutomotiveMapStyle.buildAutomotiveStyleJson(isLightTheme)
+        map.setStyle(Style.Builder().fromJson(styleJson)) { loadedStyle ->
             if (mapDisposed.value || latestIsLight != isLightTheme) return@setStyle
-            if (!isLightTheme) {
-                applyHighContrastDarkRoadsAndLabels(loadedStyle)
-            }
+            AutomotiveMapStyle.applyAutomotiveStyleToLoadedLayers(loadedStyle, isLightTheme)
             setupMapLayers(
                 style = loadedStyle,
                 accentHex = latestAccentHex,
                 route = latestActiveRoute,
                 traveledPoints = latestTraveledPoints,
                 remainingPoints = latestRemainingPoints,
+                previewOptions = latestPreviewOptions,
+                selectedPreviewIndex = latestSelectedPreviewIndex,
                 isLightTheme = isLightTheme
             )
             activateNativeLocationComponent(
@@ -421,6 +417,8 @@ fun NativeNavigatorPanel(
             route = latestActiveRoute,
             traveledPoints = latestTraveledPoints,
             remainingPoints = latestRemainingPoints,
+            previewOptions = latestPreviewOptions,
+            selectedPreviewIndex = latestSelectedPreviewIndex,
             isLightTheme = latestIsLight
         )
         applyDrivingPadding(map, engine, latestMapHeightPx)
@@ -439,31 +437,52 @@ fun NativeNavigatorPanel(
         applyDrivingPadding(map, engine, mapHeightPx)
     }
 
-    // Smooth dynamic tilt: 40.0 when moving, 0.0 when stationary (with 1s debounce to avoid stop-and-go bobbing)
-    LaunchedEffect(mapLibreMap, styleReady, engine.isFollowingGps, engine.isMoving) {
+    // Smooth dynamic 3D driving perspective: 45.0° pitch + speed-based zoom in FOLLOW, 0.0° top-down in Free Look
+    var lastAppliedDrivingZoom by remember { mutableDoubleStateOf(DRIVING_ZOOM) }
+    LaunchedEffect(mapLibreMap, styleReady, engine.isFollowingGps, engine.isMoving, activeRoute != null, speedKmh) {
         val map = mapLibreMap ?: return@LaunchedEffect
-        if (!styleReady || !engine.isFollowingGps) return@LaunchedEffect
-        if (!engine.isMoving) {
-            delay(1000L)
+        if (!styleReady) return@LaunchedEffect
+
+        if (!engine.isFollowingGps) {
+            // Free Look / route preview: return smoothly to 0.0° top-down view
+            delay(150L)
+            if (!engine.isFollowingGps && map.cameraPosition.tilt > 0.5) {
+                map.easeCamera(CameraUpdateFactory.tiltTo(STATIONARY_TILT), 450)
+            }
+            return@LaunchedEffect
         }
-        if (!engine.isFollowingGps) return@LaunchedEffect
+
+        val shouldUse3dTilt = engine.isMoving || activeRoute != null
+        if (!shouldUse3dTilt) {
+            delay(1000L)
+            if (!engine.isFollowingGps || engine.isMoving || engine.activeRoute != null) return@LaunchedEffect
+        }
+
         val lc = map.locationComponent
         if (lc.isLocationComponentActivated &&
             lc.isLocationComponentEnabled &&
             lc.cameraMode == CameraMode.TRACKING_GPS
         ) {
-            val targetTilt = if (engine.isMoving) DRIVING_TILT else STATIONARY_TILT
+            val targetTilt = if (shouldUse3dTilt) DRIVING_TILT else STATIONARY_TILT
             lc.tiltWhileTracking(targetTilt, 600L)
+
+            val targetZoom = dynamicDrivingZoom(speedKmh, activeRoute != null)
+            if (abs(targetZoom - lastAppliedDrivingZoom) >= 0.25) {
+                lastAppliedDrivingZoom = targetZoom
+                lc.zoomWhileTracking(targetZoom, 900L)
+            }
         }
     }
 
-    // Update route polyline (traveled vs remaining) and accent color on map
+    // Update route polyline (traveled vs remaining, or preview alternatives) and accent color on map
     LaunchedEffect(
         mapLibreMap,
         styleReady,
         activeRoute,
         traveledRoutePoints,
         remainingRoutePoints,
+        previewOptions,
+        selectedPreviewIndex,
         accentColorHex,
         isLightTheme
     ) {
@@ -475,9 +494,67 @@ fun NativeNavigatorPanel(
             route = activeRoute,
             traveledPoints = traveledRoutePoints,
             remainingPoints = remainingRoutePoints,
+            previewOptions = previewOptions,
+            selectedPreviewIndex = selectedPreviewIndex,
             accentHex = accentColorHex,
             isLightTheme = isLightTheme
         )
+    }
+
+    // Auto-zoom camera to fit all preview routes with adequate padding above the preview card
+    LaunchedEffect(
+        mapLibreMap,
+        styleReady,
+        isRoutePreview,
+        previewOptions,
+        mapHeightPx,
+        previewCardHeightPx
+    ) {
+        if (!isRoutePreview || previewOptions.isEmpty() || !styleReady) return@LaunchedEffect
+        val map = mapLibreMap ?: return@LaunchedEffect
+        val lc = map.locationComponent
+        if (lc.isLocationComponentActivated && lc.cameraMode != CameraMode.NONE) {
+            lc.cameraMode = CameraMode.NONE
+        }
+        engine.isFollowingGps = false
+        map.setPadding(0, 0, 0, 0)
+
+        val boundsBuilder = LatLngBounds.Builder()
+        var pointCount = 0
+        boundsBuilder.include(LatLng(engine.currentLat, engine.currentLon))
+        pointCount++
+        previewOptions.firstOrNull()?.route?.destination?.let { dest ->
+            boundsBuilder.include(LatLng(dest.lat, dest.lon))
+            pointCount++
+        }
+        previewOptions.forEach { opt ->
+            val pts = opt.route.shapePoints
+            val step = (pts.size / 120).coerceAtLeast(1)
+            for (i in pts.indices step step) {
+                boundsBuilder.include(pts[i])
+                pointCount++
+            }
+            pts.lastOrNull()?.let { boundsBuilder.include(it) }
+        }
+        if (pointCount >= 2) {
+            val density = context.resources.displayMetrics.density
+            val sidePad = (48f * density).toInt()
+            val topPad = (36f * density).toInt()
+            val rawBottomPad = if (previewCardHeightPx > 0) {
+                previewCardHeightPx + (18f * density).toInt()
+            } else {
+                (190f * density).toInt()
+            }
+            val maxAllowedBottom = if (mapHeightPx > 120) (mapHeightPx - topPad - 80).coerceAtLeast(topPad) else rawBottomPad
+            val bottomPad = rawBottomPad.coerceAtMost(maxAllowedBottom)
+            runCatching {
+                val bounds = boundsBuilder.build()
+                map.easeCamera(
+                    CameraUpdateFactory.newLatLngBounds(bounds, sidePad, topPad, sidePad, bottomPad),
+                    650
+                )
+            }
+        }
     }
 
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
@@ -523,10 +600,16 @@ fun NativeNavigatorPanel(
                         }
                     }
 
+                    val initZoom = dynamicDrivingZoom(engine.currentSpeedKmh.value, engine.activeRoute != null)
+                    val initTilt = if (engine.isFollowingGps && (engine.isMoving || engine.activeRoute != null)) {
+                        DRIVING_TILT
+                    } else {
+                        STATIONARY_TILT
+                    }
                     val initPos = CameraPosition.Builder()
                         .target(LatLng(engine.currentLat, engine.currentLon))
-                        .zoom(DRIVING_ZOOM)
-                        .tilt(if (engine.isFollowingGps && engine.isMoving) DRIVING_TILT else STATIONARY_TILT)
+                        .zoom(initZoom)
+                        .tilt(initTilt)
                         .bearing(if (engine.hasGpsFix && engine.isFollowingGps) engine.currentBearing.toDouble() else 0.0)
                         .build()
                     map.moveCamera(CameraUpdateFactory.newCameraPosition(initPos))
@@ -535,7 +618,7 @@ fun NativeNavigatorPanel(
                     mapView.addOnDidFailLoadingMapListener { errorMsg ->
                         if (mapDisposed.value || latestStyleReady) return@addOnDidFailLoadingMapListener
                         val light = latestIsLight
-                        val fallbackJson = if (light) FALLBACK_LIGHT_STYLE_JSON else FALLBACK_DARK_STYLE_JSON
+                        val fallbackJson = AutomotiveMapStyle.buildFallbackStyleJson(light)
                         Log.d(NAV_LOG_TAG, "MapLibre style load failed ($errorMsg), attivazione fallback ${if (light) "chiaro" else "scuro"}")
                         map.setStyle(Style.Builder().fromJson(fallbackJson)) { fallbackStyle ->
                             if (mapDisposed.value || latestIsLight != light) return@setStyle
@@ -545,6 +628,8 @@ fun NativeNavigatorPanel(
                                 route = latestActiveRoute,
                                 traveledPoints = latestTraveledPoints,
                                 remainingPoints = latestRemainingPoints,
+                                previewOptions = latestPreviewOptions,
+                                selectedPreviewIndex = latestSelectedPreviewIndex,
                                 isLightTheme = light
                             )
                             activateNativeLocationComponent(
@@ -558,6 +643,34 @@ fun NativeNavigatorPanel(
                                 onListenerAttached = { trackingListenerAttached = true }
                             )
                             styleReady = true
+                        }
+                    }
+
+                    map.addOnMapClickListener { latLng ->
+                        if (!engine.isRoutePreview || engine.previewOptions.size <= 1) {
+                            return@addOnMapClickListener false
+                        }
+                        val screenPt = map.projection.toScreenLocation(latLng)
+                        val hitSlopPx = 28f * context.resources.displayMetrics.density
+                        val hitRect = RectF(
+                            screenPt.x - hitSlopPx,
+                            screenPt.y - hitSlopPx,
+                            screenPt.x + hitSlopPx,
+                            screenPt.y + hitSlopPx
+                        )
+                        val features = map.queryRenderedFeatures(hitRect, LAYER_ROUTE_ALTS, LAYER_ROUTE_ALTS_CASING)
+                        val tappedIdx = features.firstOrNull()?.let { feature ->
+                            if (feature.hasProperty("optionIndex")) {
+                                feature.getNumberProperty("optionIndex")?.toInt()
+                            } else {
+                                null
+                            }
+                        }
+                        if (tappedIdx != null && tappedIdx in engine.previewOptions.indices) {
+                            engine.selectPreviewOption(tappedIdx)
+                            true
+                        } else {
+                            false
                         }
                     }
 
@@ -636,7 +749,7 @@ fun NativeNavigatorPanel(
                                 engine.stopNavigation()
                             }
                         )
-                    } else {
+                    } else if (!isRoutePreview) {
                         Column(
                             modifier = Modifier
                                 .widthIn(max = 520.dp)
@@ -810,15 +923,13 @@ fun NativeNavigatorPanel(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clickable {
-                                                            Log.d(NAV_LOG_TAG, "Destinazione selezionata: \"${place.displayName}\" (${place.lat}, ${place.lon})")
+                                                            Log.d(NAV_LOG_TAG, "Destinazione selezionata per anteprima: \"${place.displayName}\" (${place.lat}, ${place.lon})")
                                                             searchQuery = ""
+                                                            searchFocused = false
                                                             engine.clearSearchResults()
                                                             focusManager.clearFocus()
                                                             keyboardController?.hide()
-                                                            engine.calculateRoute(place, avoidTolls = engine.avoidTolls)
-                                                            mapLibreMap?.let { map ->
-                                                                recenterCamera(map, engine, latestMapHeightPx)
-                                                            }
+                                                            engine.loadRoutePreview(place)
                                                         }
                                                         .padding(horizontal = 12.dp, vertical = 9.dp)
                                                 ) {
@@ -886,38 +997,40 @@ fun NativeNavigatorPanel(
                     }
                 }
 
-                // 3. Digital GPS Speedometer Badge in bottom-left corner (aligned with "Ricentra" on bottom-right)
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(if (tightOverlay) 8.dp else 12.dp)
-                        .zIndex(10f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.glassPillSurface)
-                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = speedKmh.toString(),
-                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                        color = colors.textPrimary,
-                        fontSize = if (tightOverlay) 18.sp else 22.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "km/h",
-                        color = accent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 3.dp)
-                    )
+                // 3. Digital GPS Speedometer Badge in bottom-left corner (hidden during Route Preview)
+                if (!isRoutePreview) {
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(if (tightOverlay) 8.dp else 12.dp)
+                            .zIndex(10f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.glassPillSurface)
+                            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = speedKmh.toString(),
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                            color = colors.textPrimary,
+                            fontSize = if (tightOverlay) 18.sp else 22.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "km/h",
+                            color = accent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
                 }
 
-                // 4. Bottom-right controls: Compass (when rotated or in Free Look) + "Ricentra" (when !isFollowingGps)
-                val showCompass = abs(cameraBearing) > 1f || !engine.isFollowingGps
-                val showRecenter = !engine.isFollowingGps
+                // 4. Bottom-right controls: Compass + "Ricentra" (hidden during Route Preview)
+                val showCompass = !isRoutePreview && (abs(cameraBearing) > 1f || !engine.isFollowingGps)
+                val showRecenter = !isRoutePreview && !engine.isFollowingGps
                 if (showCompass || showRecenter) {
                     val compassDesc = stringResource(R.string.nav_compass_reset)
                     Column(
@@ -1011,10 +1124,332 @@ fun NativeNavigatorPanel(
                         }
                     }
                 }
+
+                // 5. Route Preview Card (BottomCenter, optimized for 8" landscape)
+                if (isRoutePreview) {
+                    RoutePreviewCard(
+                        destination = engine.previewDestination,
+                        options = previewOptions,
+                        selectedIndex = selectedPreviewIndex,
+                        isRouting = engine.isRouting,
+                        routeError = engine.routeError,
+                        accent = accent,
+                        onAccent = onAccent,
+                        compact = tightOverlay,
+                        onSelectOption = { idx -> engine.selectPreviewOption(idx) },
+                        onStartNavigation = {
+                            engine.startPreviewRoute()
+                            mapLibreMap?.let { map ->
+                                recenterCamera(map, engine, latestMapHeightPx)
+                            }
+                        },
+                        onCancel = {
+                            previewCardHeightPx = 0
+                            engine.cancelRoutePreview()
+                            mapLibreMap?.let { map ->
+                                recenterCamera(map, engine, latestMapHeightPx)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .widthIn(max = 640.dp)
+                            .fillMaxWidth()
+                            .padding(overlayPad)
+                            .onSizeChanged { previewCardHeightPx = it.height }
+                            .zIndex(12f)
+                    )
+                } else if (previewCardHeightPx != 0) {
+                    LaunchedEffect(Unit) { previewCardHeightPx = 0 }
+                }
             }
         }
     }
 }
+
+@Composable
+private fun RoutePreviewCard(
+    destination: PhotonPlace?,
+    options: List<RoutePreviewOption>,
+    selectedIndex: Int,
+    isRouting: Boolean,
+    routeError: String?,
+    accent: Color,
+    onAccent: Color,
+    compact: Boolean,
+    onSelectOption: (Int) -> Unit,
+    onStartNavigation: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalCockpitColors.current
+    val cardShape = RoundedCornerShape(18.dp)
+    val fastestTimeSec = options.firstOrNull()?.route?.totalTimeSec ?: 0.0
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        modifier = modifier
+            .clip(cardShape)
+            .background(colors.glassPillSurface)
+            .border(1.dp, colors.hairlineBorder, cardShape)
+            .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = if (compact) 8.dp else 10.dp)
+    ) {
+        // Header: Destination + Close (X)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Place,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = destination?.name ?: stringResource(R.string.nav_default_destination),
+                color = colors.textPrimary,
+                fontSize = if (compact) 13.sp else 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.textSecondary.copy(alpha = 0.14f))
+                    .clickable(onClick = onCancel)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.nav_preview_cancel),
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        when {
+            isRouting -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = accent,
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.nav_preview_calculating),
+                        color = colors.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            routeError != null -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = colors.dangerContent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = routeError,
+                        color = colors.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            options.isNotEmpty() -> {
+                // 3 selectable route tabs
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    options.forEachIndexed { idx, option ->
+                        val isSelected = idx == selectedIndex
+                        val optionShape = RoundedCornerShape(12.dp)
+                        val title = when (option.type) {
+                            RouteOptionType.FASTEST -> stringResource(R.string.nav_preview_fastest)
+                            RouteOptionType.ALTERNATIVE -> stringResource(R.string.nav_preview_alternative)
+                            RouteOptionType.SCENIC -> stringResource(R.string.nav_preview_scenic)
+                        }
+                        val icon = when (option.type) {
+                            RouteOptionType.FASTEST -> Icons.Default.Bolt
+                            RouteOptionType.ALTERNATIVE -> Icons.Default.AltRoute
+                            RouteOptionType.SCENIC -> Icons.Default.Terrain
+                        }
+                        val primaryTimeLabel = if (option.type == RouteOptionType.ALTERNATIVE && fastestTimeSec > 0.0) {
+                            formatPreviewTimeDiff(option.route.totalTimeSec, fastestTimeSec)
+                        } else {
+                            formatPreviewDuration(option.route.totalTimeSec)
+                        }
+                        val distanceLabel = formatPreviewDistance(option.route.totalLengthKm)
+                        val borderColor = if (isSelected) accent else colors.hairlineBorder
+                        val borderWidth = if (isSelected) 2.dp else 1.dp
+                        val bg = if (isSelected) accent.copy(alpha = 0.16f) else colors.cardSurface.copy(alpha = 0.55f)
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(optionShape)
+                                .background(bg)
+                                .border(borderWidth, borderColor, optionShape)
+                                .clickable { onSelectOption(idx) }
+                                .padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 6.dp else 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) accent else colors.textSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = title,
+                                    color = if (isSelected) accent else colors.textSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = primaryTimeLabel,
+                                color = colors.textPrimary,
+                                fontSize = if (compact) 14.sp else 15.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    text = distanceLabel,
+                                    color = colors.textSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                if (option.hasTolls) {
+                                    Text(
+                                        text = stringResource(R.string.nav_preview_toll),
+                                        color = colors.textSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(colors.textSecondary.copy(alpha = 0.14f))
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Action Row: Cancel + Big START NAVIGATION button
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val btnHeight = if (compact) 38.dp else 44.dp
+                    val btnShape = RoundedCornerShape(12.dp)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .height(btnHeight)
+                            .clip(btnShape)
+                            .background(colors.cardSurface.copy(alpha = 0.7f))
+                            .border(1.dp, colors.hairlineBorder, btnShape)
+                            .clickable(onClick = onCancel)
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.nav_preview_cancel),
+                            color = colors.textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(btnHeight)
+                            .clip(btnShape)
+                            .background(accent)
+                            .clickable(onClick = onStartNavigation)
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Navigation,
+                            contentDescription = null,
+                            tint = onAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.nav_preview_start_cta),
+                            color = onAccent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatPreviewDuration(totalSeconds: Double): String {
+    val totalMin = (totalSeconds / 60.0).roundToInt().coerceAtLeast(1)
+    val hours = totalMin / 60
+    val mins = totalMin % 60
+    return if (hours > 0) "${hours}h ${mins}m" else "$mins min"
+}
+
+private fun formatPreviewTimeDiff(optionSeconds: Double, fastestSeconds: Double): String {
+    val diffMin = ((optionSeconds - fastestSeconds) / 60.0).roundToInt()
+    return when {
+        diffMin > 0 -> "+$diffMin min"
+        diffMin < 0 -> "$diffMin min"
+        else -> formatPreviewDuration(optionSeconds)
+    }
+}
+
+private fun formatPreviewDistance(km: Double): String =
+    if (km >= 100.0) "${km.roundToInt()} km" else String.format(Locale.US, "%.1f km", km)
 
 @Composable
 private fun NoTollsChip(
@@ -1078,61 +1513,6 @@ private fun NoTollsChip(
             )
         }
     }
-}
-
-/**
- * Enhances road and label contrast on OpenFreeMap's dark style (`https://tiles.openfreemap.org/styles/dark`)
- * while preserving clean intersection casings.
- */
-private fun applyHighContrastDarkRoadsAndLabels(style: Style) {
-    val roadKeywords = listOf(
-        "road", "highway", "street", "motorway", "trunk",
-        "primary", "secondary", "tertiary", "bridge", "tunnel"
-    )
-    val excludedRoadKeywords = listOf("rail", "ferry", "boundary", "border")
-    val labelKeywords = listOf("road", "highway", "street", "place", "label")
-
-    var updatedRoads = 0
-    var updatedLabels = 0
-
-    for (layer in style.layers) {
-        val idLower = layer.id.lowercase(Locale.ROOT)
-        if (idLower.startsWith("puma-")) continue
-
-        when (layer) {
-            is LineLayer -> {
-                val isRoad = roadKeywords.any { it in idLower } &&
-                    excludedRoadKeywords.none { it in idLower }
-                if (isRoad) {
-                    val targetColorHex = when {
-                        "casing" in idLower || "outline" in idLower -> "#07090D"
-                        "motorway" in idLower || "trunk" in idLower || "primary" in idLower -> "#F1F5F9"
-                        "secondary" in idLower || "tertiary" in idLower -> "#94A3B8"
-                        else -> "#64748B"
-                    }
-                    runCatching {
-                        layer.setProperties(PropertyFactory.lineColor(targetColorHex))
-                        updatedRoads++
-                    }
-                }
-            }
-
-            is SymbolLayer -> {
-                val isLabel = labelKeywords.any { it in idLower }
-                if (isLabel) {
-                    runCatching {
-                        layer.setProperties(
-                            PropertyFactory.textColor("#F8FAFC"),
-                            PropertyFactory.textHaloColor("#090B10"),
-                            PropertyFactory.textHaloWidth(1.5f)
-                        )
-                        updatedLabels++
-                    }
-                }
-            }
-        }
-    }
-    Log.d(NAV_LOG_TAG, "Alto contrasto mappa applicato: $updatedRoads LineLayer stradali e $updatedLabels SymbolLayer etichette aggiornati")
 }
 
 @Composable
@@ -1415,11 +1795,12 @@ private fun recenterCamera(
     engine.isFollowingGps = true
     applyDrivingPadding(map, engine, mapHeightPx)
 
-    val targetTilt = if (engine.isMoving) DRIVING_TILT else STATIONARY_TILT
+    val targetZoom = dynamicDrivingZoom(engine.currentSpeedKmh.value, engine.activeRoute != null)
+    val targetTilt = if (engine.isMoving || engine.activeRoute != null) DRIVING_TILT else STATIONARY_TILT
     val lc = map.locationComponent
     val fallbackPos = CameraPosition.Builder()
         .target(LatLng(engine.currentLat, engine.currentLon))
-        .zoom(DRIVING_ZOOM)
+        .zoom(targetZoom)
         .tilt(targetTilt)
         .bearing(if (engine.hasGpsFix) engine.currentBearing.toDouble() else 0.0)
         .build()
@@ -1427,7 +1808,7 @@ private fun recenterCamera(
     if (lc.isLocationComponentActivated && lc.isLocationComponentEnabled) {
         if (lc.cameraMode != CameraMode.TRACKING_GPS) {
             if (lc.lastKnownLocation != null) {
-                lc.setCameraMode(CameraMode.TRACKING_GPS, 600L, DRIVING_ZOOM, null, targetTilt, null)
+                lc.setCameraMode(CameraMode.TRACKING_GPS, 600L, targetZoom, null, targetTilt, null)
             } else {
                 map.easeCamera(
                     CameraUpdateFactory.newCameraPosition(fallbackPos),
@@ -1443,7 +1824,7 @@ private fun recenterCamera(
                 )
             }
         } else {
-            lc.zoomWhileTracking(DRIVING_ZOOM, 600L)
+            lc.zoomWhileTracking(targetZoom, 600L)
             lc.tiltWhileTracking(targetTilt, 600L)
         }
     } else {
@@ -1457,10 +1838,26 @@ private fun setupMapLayers(
     route: ValhallaRoute?,
     traveledPoints: List<LatLng>,
     remainingPoints: List<LatLng>,
+    previewOptions: List<RoutePreviewOption> = emptyList(),
+    selectedPreviewIndex: Int = 0,
     isLightTheme: Boolean
 ) {
-    val safeColor = parseSafeColor(accentHex, isLightTheme)
-    val routeCasingHex = if (isLightTheme) "#1E293B" else "#0A0D12"
+    val ribbonCoreColor = AndroidColor.parseColor(AutomotiveMapStyle.ROUTE_RIBBON_CORE_HEX)
+    val ribbonCasingHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_RIBBON_CASING_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_RIBBON_CASING_NIGHT_HEX
+    }
+    val altCoreHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_ALT_CORE_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_ALT_CORE_NIGHT_HEX
+    }
+    val altCasingHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_ALT_CASING_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_ALT_CASING_NIGHT_HEX
+    }
 
     // Anchor route & destination layers below MapLibre's LocationComponent layers so the arrow stays on top
     val locationAnchor = listOf(
@@ -1485,9 +1882,9 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_ROUTE_TRAVELED_CASING) == null) {
         addLayerBelowLocation(
             LineLayer(LAYER_ROUTE_TRAVELED_CASING, SOURCE_ROUTE_TRAVELED).withProperties(
-                PropertyFactory.lineColor(AndroidColor.parseColor("#475569")),
-                PropertyFactory.lineOpacity(0.25f),
-                PropertyFactory.lineWidth(9f),
+                PropertyFactory.lineColor(AndroidColor.parseColor(AutomotiveMapStyle.ROUTE_TRAVELED_CASING_HEX)),
+                PropertyFactory.lineOpacity(0.32f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCasingWidthExpression()),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
             )
@@ -1496,9 +1893,35 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_ROUTE_TRAVELED) == null) {
         addLayerBelowLocation(
             LineLayer(LAYER_ROUTE_TRAVELED, SOURCE_ROUTE_TRAVELED).withProperties(
-                PropertyFactory.lineColor(AndroidColor.parseColor("#64748B")),
-                PropertyFactory.lineOpacity(0.42f),
-                PropertyFactory.lineWidth(5.5f),
+                PropertyFactory.lineColor(AndroidColor.parseColor(AutomotiveMapStyle.ROUTE_TRAVELED_CORE_HEX)),
+                PropertyFactory.lineOpacity(0.45f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCoreWidthExpression()),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+            )
+        )
+    }
+
+    if (style.getSource(SOURCE_ROUTE_ALTS) == null) {
+        style.addSource(GeoJsonSource(SOURCE_ROUTE_ALTS, emptyFeatureCollectionJson()))
+    }
+    if (style.getLayer(LAYER_ROUTE_ALTS_CASING) == null) {
+        addLayerBelowLocation(
+            LineLayer(LAYER_ROUTE_ALTS_CASING, SOURCE_ROUTE_ALTS).withProperties(
+                PropertyFactory.lineColor(AndroidColor.parseColor(altCasingHex)),
+                PropertyFactory.lineOpacity(0.40f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCasingWidthExpression()),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+            )
+        )
+    }
+    if (style.getLayer(LAYER_ROUTE_ALTS) == null) {
+        addLayerBelowLocation(
+            LineLayer(LAYER_ROUTE_ALTS, SOURCE_ROUTE_ALTS).withProperties(
+                PropertyFactory.lineColor(AndroidColor.parseColor(altCoreHex)),
+                PropertyFactory.lineOpacity(0.65f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCoreWidthExpression()),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
             )
@@ -1511,8 +1934,9 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_ROUTE_CASING) == null) {
         addLayerBelowLocation(
             LineLayer(LAYER_ROUTE_CASING, SOURCE_ROUTE).withProperties(
-                PropertyFactory.lineColor(AndroidColor.parseColor(routeCasingHex)),
-                PropertyFactory.lineWidth(9f),
+                PropertyFactory.lineColor(AndroidColor.parseColor(ribbonCasingHex)),
+                PropertyFactory.lineOpacity(0.95f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCasingWidthExpression()),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
             )
@@ -1521,8 +1945,9 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_ROUTE) == null) {
         addLayerBelowLocation(
             LineLayer(LAYER_ROUTE, SOURCE_ROUTE).withProperties(
-                PropertyFactory.lineColor(safeColor),
-                PropertyFactory.lineWidth(5.5f),
+                PropertyFactory.lineColor(ribbonCoreColor),
+                PropertyFactory.lineOpacity(1.0f),
+                PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCoreWidthExpression()),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
             )
@@ -1535,15 +1960,24 @@ private fun setupMapLayers(
     if (style.getLayer(LAYER_DEST_DOT) == null) {
         addLayerBelowLocation(
             CircleLayer(LAYER_DEST_DOT, SOURCE_DEST).withProperties(
-                PropertyFactory.circleRadius(7f),
+                PropertyFactory.circleRadius(8f),
                 PropertyFactory.circleColor(AndroidColor.WHITE),
-                PropertyFactory.circleStrokeWidth(3f),
-                PropertyFactory.circleStrokeColor(safeColor)
+                PropertyFactory.circleStrokeWidth(3.5f),
+                PropertyFactory.circleStrokeColor(ribbonCoreColor)
             )
         )
     }
 
-    updateRouteOnStyle(style, route, traveledPoints, remainingPoints, accentHex, isLightTheme)
+    updateRouteOnStyle(
+        style = style,
+        route = route,
+        traveledPoints = traveledPoints,
+        remainingPoints = remainingPoints,
+        previewOptions = previewOptions,
+        selectedPreviewIndex = selectedPreviewIndex,
+        accentHex = accentHex,
+        isLightTheme = isLightTheme
+    )
 }
 
 private fun updateRouteOnStyle(
@@ -1551,30 +1985,54 @@ private fun updateRouteOnStyle(
     route: ValhallaRoute?,
     traveledPoints: List<LatLng>,
     remainingPoints: List<LatLng>,
-    accentHex: String,
+    previewOptions: List<RoutePreviewOption> = emptyList(),
+    selectedPreviewIndex: Int = 0,
+    @Suppress("UNUSED_PARAMETER") accentHex: String,
     isLightTheme: Boolean
 ) {
-    val safeColor = parseSafeColor(accentHex, isLightTheme)
-    val routeCasingHex = if (isLightTheme) "#1E293B" else "#0A0D12"
+    val ribbonCoreColor = AndroidColor.parseColor(AutomotiveMapStyle.ROUTE_RIBBON_CORE_HEX)
+    val ribbonCasingHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_RIBBON_CASING_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_RIBBON_CASING_NIGHT_HEX
+    }
+    val altCoreHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_ALT_CORE_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_ALT_CORE_NIGHT_HEX
+    }
+    val altCasingHex = if (isLightTheme) {
+        AutomotiveMapStyle.ROUTE_ALT_CASING_DAY_HEX
+    } else {
+        AutomotiveMapStyle.ROUTE_ALT_CASING_NIGHT_HEX
+    }
+    (style.getLayer(LAYER_ROUTE_ALTS_CASING) as? LineLayer)?.setProperties(
+        PropertyFactory.lineColor(AndroidColor.parseColor(altCasingHex)),
+        PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCasingWidthExpression())
+    )
+    (style.getLayer(LAYER_ROUTE_ALTS) as? LineLayer)?.setProperties(
+        PropertyFactory.lineColor(AndroidColor.parseColor(altCoreHex)),
+        PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCoreWidthExpression())
+    )
     (style.getLayer(LAYER_ROUTE_CASING) as? LineLayer)?.setProperties(
-        PropertyFactory.lineColor(AndroidColor.parseColor(routeCasingHex))
+        PropertyFactory.lineColor(AndroidColor.parseColor(ribbonCasingHex)),
+        PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCasingWidthExpression())
     )
     (style.getLayer(LAYER_ROUTE) as? LineLayer)?.setProperties(
-        PropertyFactory.lineColor(safeColor)
+        PropertyFactory.lineColor(ribbonCoreColor),
+        PropertyFactory.lineWidth(AutomotiveMapStyle.routeRibbonCoreWidthExpression())
     )
     (style.getLayer(LAYER_DEST_DOT) as? CircleLayer)?.setProperties(
-        PropertyFactory.circleStrokeColor(safeColor)
+        PropertyFactory.circleStrokeColor(ribbonCoreColor)
     )
 
     val traveledSrc = style.getSourceAs<GeoJsonSource>(SOURCE_ROUTE_TRAVELED)
+    val altsSrc = style.getSourceAs<GeoJsonSource>(SOURCE_ROUTE_ALTS)
     val routeSrc = style.getSourceAs<GeoJsonSource>(SOURCE_ROUTE) ?: return
     val destSrc = style.getSourceAs<GeoJsonSource>(SOURCE_DEST) ?: return
 
-    if (route == null || route.shapePoints.isEmpty()) {
-        traveledSrc?.setGeoJson(emptyFeatureCollectionJson())
-        routeSrc.setGeoJson(emptyFeatureCollectionJson())
-        destSrc.setGeoJson(emptyFeatureCollectionJson())
-    } else {
+    if (route != null && route.shapePoints.isNotEmpty()) {
+        altsSrc?.setGeoJson(emptyFeatureCollectionJson())
         if (traveledPoints.size >= 2) {
             traveledSrc?.setGeoJson(lineStringFeatureJson(traveledPoints))
         } else {
@@ -1583,13 +2041,50 @@ private fun updateRouteOnStyle(
         val activeRemaining = if (remainingPoints.size >= 2) remainingPoints else route.shapePoints
         routeSrc.setGeoJson(lineStringFeatureJson(activeRemaining))
         destSrc.setGeoJson(pointFeatureJson(route.destination.lat, route.destination.lon))
+    } else if (previewOptions.isNotEmpty()) {
+        traveledSrc?.setGeoJson(emptyFeatureCollectionJson())
+        val selected = previewOptions.getOrNull(selectedPreviewIndex) ?: previewOptions.first()
+        val unselected = previewOptions.mapIndexedNotNull { idx, opt ->
+            if (idx != selectedPreviewIndex && opt.route.shapePoints.size >= 2) idx to opt.route.shapePoints else null
+        }
+        altsSrc?.setGeoJson(
+            if (unselected.isNotEmpty()) featureCollectionFromIndexedLines(unselected) else emptyFeatureCollectionJson()
+        )
+        routeSrc.setGeoJson(lineStringFeatureJson(selected.route.shapePoints))
+        destSrc.setGeoJson(pointFeatureJson(selected.route.destination.lat, selected.route.destination.lon))
+    } else {
+        traveledSrc?.setGeoJson(emptyFeatureCollectionJson())
+        altsSrc?.setGeoJson(emptyFeatureCollectionJson())
+        routeSrc.setGeoJson(emptyFeatureCollectionJson())
+        destSrc.setGeoJson(emptyFeatureCollectionJson())
     }
 }
 
-private fun parseSafeColor(hex: String, isLightTheme: Boolean = false): Int {
-    val effectiveHex = if (isLightTheme && hex.equals("#2979FF", ignoreCase = true)) "#1D4ED8" else hex
-    return runCatching { AndroidColor.parseColor(effectiveHex) }
-        .getOrElse { AndroidColor.parseColor(if (isLightTheme) "#1D4ED8" else "#2979FF") }
+private fun featureCollectionFromIndexedLines(lines: List<Pair<Int, List<LatLng>>>): String {
+    val features = JSONArray()
+    for ((idx, points) in lines) {
+        val coords = JSONArray()
+        for (pt in points) {
+            coords.put(JSONArray().put(pt.longitude).put(pt.latitude))
+        }
+        features.put(
+            JSONObject().apply {
+                put("type", "Feature")
+                put(
+                    "geometry",
+                    JSONObject().apply {
+                        put("type", "LineString")
+                        put("coordinates", coords)
+                    }
+                )
+                put("properties", JSONObject().put("optionIndex", idx))
+            }
+        )
+    }
+    return JSONObject().apply {
+        put("type", "FeatureCollection")
+        put("features", features)
+    }.toString()
 }
 
 private fun emptyFeatureCollectionJson(): String =

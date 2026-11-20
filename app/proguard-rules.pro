@@ -10,6 +10,9 @@
 -keep class com.openlauncher.app.ui.screen.PhotonPlace { *; }
 -keep class com.openlauncher.app.ui.screen.ValhallaManeuver { *; }
 -keep class com.openlauncher.app.ui.screen.ValhallaRoute { *; }
+-keep class com.openlauncher.app.ui.screen.RouteOptionType { *; }
+-keep class com.openlauncher.app.ui.screen.RoutePreviewOption { *; }
+-keep class com.openlauncher.app.ui.screen.AutomotiveMapStyle { *; }
 
 # ── Gson ──
 -keep class com.google.gson.reflect.TypeToken { *; }

@@ -7,6 +7,7 @@ import android.location.Location
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import androidx.annotation.Keep
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -21,6 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +41,7 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -47,6 +51,7 @@ import kotlin.math.sqrt
 private const val NAV_TAG = "PumaNav"
 private const val HTTP_USER_AGENT = "PumaLauncher/1.0 (Android)"
 
+@Keep
 data class PhotonPlace(
     val name: String,
     val subtitle: String,
@@ -70,6 +75,7 @@ enum class TurnIconType {
     DESTINATION
 }
 
+@Keep
 data class ValhallaManeuver(
     val type: Int,
     val instruction: String,
@@ -81,12 +87,28 @@ data class ValhallaManeuver(
     val turnIcon: TurnIconType
 )
 
+@Keep
 data class ValhallaRoute(
     val shapePoints: List<LatLng>,
     val maneuvers: List<ValhallaManeuver>,
     val totalLengthKm: Double,
     val totalTimeSec: Double,
-    val destination: PhotonPlace
+    val destination: PhotonPlace,
+    val hasToll: Boolean = false
+)
+
+@Keep
+enum class RouteOptionType {
+    FASTEST,
+    ALTERNATIVE,
+    SCENIC
+}
+
+@Keep
+data class RoutePreviewOption(
+    val type: RouteOptionType,
+    val route: ValhallaRoute,
+    val hasTolls: Boolean = route.hasToll
 )
 
 private data class GeocodingOutcome(
@@ -228,6 +250,16 @@ class NavigationEngine(context: Context) {
     var isSearching by mutableStateOf(false)
         private set
     var searchStatusMessage by mutableStateOf<String?>(null)
+        private set
+
+    // Route Preview state (3 alternatives before starting Turn-by-Turn)
+    var isRoutePreview by mutableStateOf(false)
+        private set
+    var previewDestination by mutableStateOf<PhotonPlace?>(null)
+        private set
+    var previewOptions by mutableStateOf<List<RoutePreviewOption>>(emptyList())
+        private set
+    var selectedPreviewIndex by mutableIntStateOf(0)
         private set
 
     // Active Turn-by-Turn route state
@@ -593,6 +625,169 @@ class NavigationEngine(context: Context) {
         }
     }
 
+    fun loadRoutePreview(destination: PhotonPlace) {
+        routeJob?.cancel()
+        isRouting = true
+        routeError = null
+        isRoutePreview = true
+        previewDestination = destination
+        previewOptions = emptyList()
+        selectedPreviewIndex = 0
+        isFollowingGps = false
+
+        val startLat = currentLat
+        val startLon = currentLon
+        val standardUseTolls = if (avoidTolls) 0.0 else 1.0
+
+        Log.d(
+            NAV_TAG,
+            "Calcolo anteprima 3 percorsi (avoidTolls=$avoidTolls) da ($startLat, $startLon) a \"${destination.name}\" (${destination.lat}, ${destination.lon})"
+        )
+
+        routeJob = scope.launch {
+            val options = withContext(Dispatchers.IO) {
+                coroutineScope {
+                    val fastestDeferred = async {
+                        requestValhallaPreviewPair(
+                            startLat = startLat,
+                            startLon = startLon,
+                            destination = destination,
+                            useTolls = standardUseTolls
+                        )
+                    }
+                    val noTollsDeferred = if (!avoidTolls) {
+                        async {
+                            val payload = buildValhallaPayload(
+                                startLat = startLat,
+                                startLon = startLon,
+                                destination = destination,
+                                useTolls = 0.0
+                            )
+                            postValhallaRouteJson(payload)
+                                ?.optJSONObject("trip")
+                                ?.let { parseValhallaTrip(it, destination) }
+                        }
+                    } else {
+                        null
+                    }
+                    val scenicDeferred = async {
+                        val payload = buildValhallaPayload(
+                            startLat = startLat,
+                            startLon = startLon,
+                            destination = destination,
+                            useTolls = 0.0,
+                            useHighways = 0.05,
+                            useHills = 0.95
+                        )
+                        postValhallaRouteJson(payload)
+                            ?.optJSONObject("trip")
+                            ?.let { parseValhallaTrip(it, destination) }
+                    }
+
+                    val fastestPair = fastestDeferred.await()
+                    val fastest = fastestPair.firstOrNull()
+                        ?: requestOsrmRoute(startLat, startLon, destination, avoidTolls)
+                        ?: return@coroutineScope emptyList<RoutePreviewOption>()
+
+                    val result = mutableListOf<RoutePreviewOption>()
+                    result.add(
+                        RoutePreviewOption(
+                            type = RouteOptionType.FASTEST,
+                            route = fastest,
+                            hasTolls = fastest.hasToll
+                        )
+                    )
+
+                    val valhallaAlt = fastestPair.getOrNull(1)
+                    val noTollsAlt = noTollsDeferred?.await()
+                    val chosenAlt = when {
+                        valhallaAlt != null && !isSameRoute(valhallaAlt, fastest) -> valhallaAlt
+                        noTollsAlt != null && !isSameRoute(noTollsAlt, fastest) -> noTollsAlt
+                        else -> null
+                    }
+                    if (chosenAlt != null) {
+                        result.add(
+                            RoutePreviewOption(
+                                type = RouteOptionType.ALTERNATIVE,
+                                route = chosenAlt,
+                                hasTolls = chosenAlt.hasToll
+                            )
+                        )
+                    }
+
+                    val scenic = scenicDeferred.await()
+                    if (scenic != null &&
+                        !isSameRoute(scenic, fastest) &&
+                        (chosenAlt == null || !isSameRoute(scenic, chosenAlt))
+                    ) {
+                        result.add(
+                            RoutePreviewOption(
+                                type = RouteOptionType.SCENIC,
+                                route = scenic,
+                                hasTolls = scenic.hasToll
+                            )
+                        )
+                    }
+
+                    result
+                }
+            }
+
+            isRouting = false
+            if (options.isNotEmpty()) {
+                previewOptions = options
+                selectedPreviewIndex = 0
+                Log.d(
+                    NAV_TAG,
+                    "Anteprima percorso pronta: ${options.size} opzioni (${options.joinToString { "${it.type}:${"%.1f".format(it.route.totalLengthKm)}km" }})"
+                )
+            } else {
+                routeError = AppLanguageManager.localizedString(appContext, R.string.nav_route_error)
+                Log.d(NAV_TAG, "Errore: sia Valhalla che OSRM hanno fallito il calcolo anteprima")
+            }
+        }
+    }
+
+    fun selectPreviewOption(index: Int) {
+        if (index in previewOptions.indices) {
+            selectedPreviewIndex = index
+        }
+    }
+
+    fun cancelRoutePreview() {
+        routeJob?.cancel()
+        isRouting = false
+        isRoutePreview = false
+        previewDestination = null
+        previewOptions = emptyList()
+        selectedPreviewIndex = 0
+        routeError = null
+        isFollowingGps = true
+        Log.d(NAV_TAG, "Anteprima percorso annullata dall'utente")
+    }
+
+    fun startPreviewRoute() {
+        val chosen = previewOptions.getOrNull(selectedPreviewIndex)?.route ?: return
+        isRoutePreview = false
+        previewDestination = null
+        previewOptions = emptyList()
+        selectedPreviewIndex = 0
+        routeError = null
+        isFollowingGps = true
+        lastRouteCalcElapsedMs = SystemClock.elapsedRealtime()
+
+        activeRoute = chosen
+        currentManeuverIndex = 0
+        announced300ForManeuver = -1
+        announced50ForManeuver = -1
+        updateNavigationProgress(currentLat, currentLon, chosen)
+        val firstInstruction = chosen.maneuvers.firstOrNull()?.instruction.orEmpty()
+        if (firstInstruction.isNotBlank()) {
+            speak(firstInstruction)
+        }
+        Log.d(NAV_TAG, "Navigazione avviata da anteprima: ${"%.1f".format(chosen.totalLengthKm)} km")
+    }
+
     /**
      * Calculates a Turn-by-Turn route via POST to https://valhalla1.openstreetmap.de/route
      * (including costing_options.auto.use_tolls based on avoidTolls, decoding shape with polyline6 1e6),
@@ -646,6 +841,10 @@ class NavigationEngine(context: Context) {
     fun stopNavigation() {
         routeJob?.cancel()
         isRouting = false
+        isRoutePreview = false
+        previewDestination = null
+        previewOptions = emptyList()
+        selectedPreviewIndex = 0
         activeRoute = null
         traveledRoutePoints = emptyList()
         remainingRoutePoints = emptyList()
@@ -662,46 +861,61 @@ class NavigationEngine(context: Context) {
         Log.d(NAV_TAG, "Navigazione terminata dall'utente")
     }
 
-    private fun requestValhallaRoute(
+    private fun isSameRoute(a: ValhallaRoute, b: ValhallaRoute): Boolean {
+        val distDiff = abs(a.totalLengthKm - b.totalLengthKm)
+        val timeDiff = abs(a.totalTimeSec - b.totalTimeSec)
+        return distDiff < 0.15 && timeDiff < 15.0
+    }
+
+    private fun buildValhallaPayload(
         startLat: Double,
         startLon: Double,
         destination: PhotonPlace,
-        avoidTolls: Boolean
-    ): ValhallaRoute? {
+        useTolls: Double,
+        useHighways: Double? = null,
+        useHills: Double? = null,
+        alternates: Int = 0
+    ): JSONObject {
+        val autoOptions = JSONObject().put("use_tolls", useTolls)
+        if (useHighways != null) {
+            autoOptions.put("use_highways", useHighways)
+        }
+        if (useHills != null) {
+            autoOptions.put("use_hills", useHills)
+        }
+        val valhallaLang = when (AppLanguageManager.getSavedLanguage(appContext)) {
+            "de" -> "de-DE"
+            "it" -> "it-IT"
+            "fr" -> "fr-FR"
+            "es" -> "es-ES"
+            "pt" -> "pt-PT"
+            else -> "en-US"
+        }
+        return JSONObject().apply {
+            put(
+                "locations",
+                JSONArray().apply {
+                    put(JSONObject().put("lat", startLat).put("lon", startLon))
+                    put(JSONObject().put("lat", destination.lat).put("lon", destination.lon))
+                }
+            )
+            put("costing", "auto")
+            put("costing_options", JSONObject().put("auto", autoOptions))
+            if (alternates > 0) {
+                put("alternates", alternates)
+            }
+            put(
+                "directions_options",
+                JSONObject()
+                    .put("units", "kilometers")
+                    .put("language", valhallaLang)
+            )
+        }
+    }
+
+    private fun postValhallaRouteJson(payload: JSONObject): JSONObject? {
         var conn: HttpURLConnection? = null
         return try {
-            val payload = JSONObject().apply {
-                put(
-                    "locations",
-                    JSONArray().apply {
-                        put(JSONObject().put("lat", startLat).put("lon", startLon))
-                        put(JSONObject().put("lat", destination.lat).put("lon", destination.lon))
-                    }
-                )
-                put("costing", "auto")
-                put(
-                    "costing_options",
-                    JSONObject().put(
-                        "auto",
-                        JSONObject().put("use_tolls", if (avoidTolls) 0.0 else 1.0)
-                    )
-                )
-                val valhallaLang = when (AppLanguageManager.getSavedLanguage(appContext)) {
-                    "de" -> "de-DE"
-                    "it" -> "it-IT"
-                    "fr" -> "fr-FR"
-                    "es" -> "es-ES"
-                    "pt" -> "pt-PT"
-                    else -> "en-US"
-                }
-                put(
-                    "directions_options",
-                    JSONObject()
-                        .put("units", "kilometers")
-                        .put("language", valhallaLang)
-                )
-            }
-
             conn = (URL("https://valhalla1.openstreetmap.de/route").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 doOutput = true
@@ -723,66 +937,119 @@ class NavigationEngine(context: Context) {
             }
 
             val body = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
-            val root = JSONObject(body)
-            val trip = root.getJSONObject("trip")
-            val legs = trip.getJSONArray("legs")
-            if (legs.length() == 0) return null
-            val leg0 = legs.getJSONObject(0)
-
-            val shapeEncoded = leg0.getString("shape")
-            val shapePoints = decodePolyline6(shapeEncoded)
-            if (shapePoints.isEmpty()) return null
-
-            val rawManeuvers = leg0.getJSONArray("maneuvers")
-            val maneuvers = ArrayList<ValhallaManeuver>(rawManeuvers.length())
-            for (i in 0 until rawManeuvers.length()) {
-                val m = rawManeuvers.getJSONObject(i)
-                val type = m.optInt("type", 1)
-                val instruction = m.optString("instruction", "").trim()
-                val streetNamesArr = m.optJSONArray("street_names")
-                val street = if (streetNamesArr != null && streetNamesArr.length() > 0) {
-                    (0 until streetNamesArr.length()).mapNotNull { idx ->
-                        streetNamesArr.optString(idx)?.takeIf { it.isNotBlank() }
-                    }.joinToString(" / ")
-                } else {
-                    ""
-                }
-                val lengthKm = m.optDouble("length", 0.0)
-                val timeSec = m.optDouble("time", 0.0)
-                val beginIdx = m.optInt("begin_shape_index", 0).coerceIn(0, shapePoints.lastIndex)
-                val endIdx = m.optInt("end_shape_index", shapePoints.lastIndex).coerceIn(beginIdx, shapePoints.lastIndex)
-                maneuvers.add(
-                    ValhallaManeuver(
-                        type = type,
-                        instruction = instruction,
-                        streetName = street,
-                        lengthKm = lengthKm,
-                        timeSec = timeSec,
-                        beginShapeIndex = beginIdx,
-                        endShapeIndex = endIdx,
-                        turnIcon = mapValhallaManeuverIcon(type, instruction)
-                    )
-                )
-            }
-
-            val summary = trip.optJSONObject("summary") ?: leg0.optJSONObject("summary")
-            val totalKm = summary?.optDouble("length", 0.0) ?: maneuvers.sumOf { it.lengthKm }
-            val totalSec = summary?.optDouble("time", 0.0) ?: maneuvers.sumOf { it.timeSec }
-
-            Log.d(NAV_TAG, "Percorso Valhalla calcolato (avoidTolls=$avoidTolls): ${shapePoints.size} punti (polyline6), ${maneuvers.size} manovre, ${"%.1f".format(totalKm)} km")
-            ValhallaRoute(
-                shapePoints = shapePoints,
-                maneuvers = maneuvers,
-                totalLengthKm = totalKm,
-                totalTimeSec = totalSec,
-                destination = destination
-            )
+            JSONObject(body)
         } catch (e: Exception) {
             Log.d(NAV_TAG, "Errore routing Valhalla: ${e.javaClass.simpleName}: ${e.message}")
             null
         } finally {
             conn?.disconnect()
         }
+    }
+
+    private fun parseValhallaTrip(trip: JSONObject, destination: PhotonPlace): ValhallaRoute? {
+        val legs = trip.optJSONArray("legs") ?: return null
+        if (legs.length() == 0) return null
+        val leg0 = legs.getJSONObject(0)
+
+        val shapeEncoded = leg0.optString("shape", "")
+        if (shapeEncoded.isBlank()) return null
+        val shapePoints = decodePolyline6(shapeEncoded)
+        if (shapePoints.isEmpty()) return null
+
+        val rawManeuvers = leg0.optJSONArray("maneuvers") ?: JSONArray()
+        val maneuvers = ArrayList<ValhallaManeuver>(rawManeuvers.length())
+        for (i in 0 until rawManeuvers.length()) {
+            val m = rawManeuvers.getJSONObject(i)
+            val type = m.optInt("type", 1)
+            val instruction = m.optString("instruction", "").trim()
+            val streetNamesArr = m.optJSONArray("street_names")
+            val street = if (streetNamesArr != null && streetNamesArr.length() > 0) {
+                (0 until streetNamesArr.length()).mapNotNull { idx ->
+                    streetNamesArr.optString(idx)?.takeIf { it.isNotBlank() }
+                }.joinToString(" / ")
+            } else {
+                ""
+            }
+            val lengthKm = m.optDouble("length", 0.0)
+            val timeSec = m.optDouble("time", 0.0)
+            val beginIdx = m.optInt("begin_shape_index", 0).coerceIn(0, shapePoints.lastIndex)
+            val endIdx = m.optInt("end_shape_index", shapePoints.lastIndex).coerceIn(beginIdx, shapePoints.lastIndex)
+            maneuvers.add(
+                ValhallaManeuver(
+                    type = type,
+                    instruction = instruction,
+                    streetName = street,
+                    lengthKm = lengthKm,
+                    timeSec = timeSec,
+                    beginShapeIndex = beginIdx,
+                    endShapeIndex = endIdx,
+                    turnIcon = mapValhallaManeuverIcon(type, instruction)
+                )
+            )
+        }
+
+        val summary = trip.optJSONObject("summary") ?: leg0.optJSONObject("summary")
+        val totalKm = summary?.optDouble("length", 0.0) ?: maneuvers.sumOf { it.lengthKm }
+        val totalSec = summary?.optDouble("time", 0.0) ?: maneuvers.sumOf { it.timeSec }
+        val hasToll = summary?.optBoolean("has_toll", false)
+            ?: leg0.optJSONObject("summary")?.optBoolean("has_toll", false)
+            ?: false
+
+        return ValhallaRoute(
+            shapePoints = shapePoints,
+            maneuvers = maneuvers,
+            totalLengthKm = totalKm,
+            totalTimeSec = totalSec,
+            destination = destination,
+            hasToll = hasToll
+        )
+    }
+
+    private fun requestValhallaPreviewPair(
+        startLat: Double,
+        startLon: Double,
+        destination: PhotonPlace,
+        useTolls: Double
+    ): List<ValhallaRoute> {
+        val payload = buildValhallaPayload(
+            startLat = startLat,
+            startLon = startLon,
+            destination = destination,
+            useTolls = useTolls,
+            alternates = 1
+        )
+        val root = postValhallaRouteJson(payload) ?: return emptyList()
+        val results = mutableListOf<ValhallaRoute>()
+        root.optJSONObject("trip")?.let { trip ->
+            parseValhallaTrip(trip, destination)?.let { results.add(it) }
+        }
+        val alts = root.optJSONArray("alternates")
+        if (alts != null) {
+            for (i in 0 until alts.length()) {
+                val altTrip = alts.optJSONObject(i)?.optJSONObject("trip") ?: continue
+                parseValhallaTrip(altTrip, destination)?.let { results.add(it) }
+            }
+        }
+        return results
+    }
+
+    private fun requestValhallaRoute(
+        startLat: Double,
+        startLon: Double,
+        destination: PhotonPlace,
+        avoidTolls: Boolean
+    ): ValhallaRoute? {
+        val payload = buildValhallaPayload(
+            startLat = startLat,
+            startLon = startLon,
+            destination = destination,
+            useTolls = if (avoidTolls) 0.0 else 1.0
+        )
+        val root = postValhallaRouteJson(payload) ?: return null
+        val trip = root.optJSONObject("trip") ?: return null
+        val route = parseValhallaTrip(trip, destination) ?: return null
+        Log.d(NAV_TAG, "Percorso Valhalla calcolato (avoidTolls=$avoidTolls): ${route.shapePoints.size} punti (polyline6), ${route.maneuvers.size} manovre, ${"%.1f".format(route.totalLengthKm)} km")
+        return route
     }
 
     private fun requestOsrmRoute(

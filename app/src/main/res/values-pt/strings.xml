@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App & Manifest -->
-    <string name="app_name">Puma Launcher</string>
+    <string name="app_name">PumaNav Lab</string>
     <string name="media_label">Puma Launcher Media</string>
 
     <!-- Common Actions -->
@@ -101,6 +101,14 @@
     <string name="nav_avoid_tolls">Evitar pedágios</string>
     <string name="nav_searching">Pesquisando...</string>
     <string name="nav_start_navigation">Iniciar navegação</string>
+    <string name="nav_preview_calculating">Calculando rotas...</string>
+    <string name="nav_preview_fastest">Mais rápida</string>
+    <string name="nav_preview_alternative">Alternativa</string>
+    <string name="nav_preview_scenic">Panorâmica</string>
+    <string name="nav_preview_toll">Pedágio</string>
+    <string name="nav_preview_no_toll">Sem pedágio</string>
+    <string name="nav_preview_start_cta">INICIAR NAVEGAÇÃO</string>
+    <string name="nav_preview_cancel">Cancelar</string>
     <string name="nav_no_results">Nenhum resultado encontrado</string>
     <string name="nav_network_error">Erro de rede</string>
     <string name="nav_route_error">Não foi possível calcular a rota</string>
