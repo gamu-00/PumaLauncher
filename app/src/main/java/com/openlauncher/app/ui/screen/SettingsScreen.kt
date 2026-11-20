@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.BuildConfig
@@ -112,62 +113,169 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // ── 0. Language Selector (Launcher + Media Station Stream Priority) ───
+            // ── 0. Language Selector (Compact Automotive Dropdown Menu) ──────────
             SettingsSection(stringResource(R.string.settings_section_language), accent) {
-                val currentLang = remember(context) { AppLanguageManager.getSavedLanguage(context) }
+                var currentLang by remember(context) {
+                    mutableStateOf(AppLanguageManager.getSavedLanguage(context))
+                }
+                var languageMenuExpanded by remember { mutableStateOf(false) }
                 val activity = remember(context) { AppLanguageManager.findActivity(context) }
+                val activeOption = remember(currentLang) {
+                    AppLanguageManager.SUPPORTED_LANGUAGES.firstOrNull { it.code == currentLang }
+                        ?: AppLanguageManager.SUPPORTED_LANGUAGES.first()
+                }
+
                 SettingsRow(
                     label    = stringResource(R.string.settings_language_label),
                     sublabel = stringResource(R.string.settings_language_desc),
                     icon     = Icons.Default.Language,
                     accent   = accent
-                ) {}
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AppLanguageManager.SUPPORTED_LANGUAGES.chunked(3).forEach { rowOptions ->
+                    Box {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .height(46.dp)
+                                .clip(AaCardShape)
+                                .background(colors.elevatedSurface)
+                                .border(
+                                    width = if (languageMenuExpanded) 1.5.dp else 1.dp,
+                                    color = if (languageMenuExpanded) accent else colors.hairlineBorder,
+                                    shape = AaCardShape
+                                )
+                                .clickable { languageMenuExpanded = true }
+                                .padding(horizontal = 14.dp)
                         ) {
-                            rowOptions.forEach { option ->
+                            Text(
+                                text = activeOption.flagEmoji,
+                                fontSize = 16.sp
+                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(accent.copy(alpha = 0.18f))
+                                    .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = activeOption.badgeCode,
+                                    color = accent,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                            Text(
+                                text = activeOption.nativeName,
+                                color = colors.textPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                imageVector = if (languageMenuExpanded) {
+                                    Icons.Default.KeyboardArrowUp
+                                } else {
+                                    Icons.Default.KeyboardArrowDown
+                                },
+                                contentDescription = null,
+                                tint = if (languageMenuExpanded) accent else colors.textSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = languageMenuExpanded,
+                            onDismissRequest = { languageMenuExpanded = false },
+                            shape = RoundedCornerShape(14.dp),
+                            containerColor = colors.overlayPanelSurface,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 10.dp,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairlineBorder),
+                            modifier = Modifier
+                                .widthIn(min = 240.dp, max = 300.dp)
+                                .heightIn(max = 320.dp)
+                        ) {
+                            AppLanguageManager.SUPPORTED_LANGUAGES.forEachIndexed { idx, option ->
                                 val selected = option.code == currentLang
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(42.dp)
-                                        .clip(AaCardShape)
-                                        .background(if (selected) accent else colors.elevatedSurface)
-                                        .border(1.dp, if (selected) accent else colors.hairlineBorder, AaCardShape)
-                                        .clickable {
-                                            if (!selected) {
-                                                AppLanguageManager.applyLanguage(activity, context, option.code)
-                                            }
-                                        }
-                                        .padding(horizontal = 10.dp)
-                                ) {
-                                    if (selected) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = onAccent,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                    }
-                                    Text(
-                                        text = option.nativeName,
-                                        color = if (selected) onAccent else colors.textPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                        maxLines = 1
+                                if (idx > 0) {
+                                    HorizontalDivider(
+                                        color = colors.hairlineBorder.copy(alpha = 0.55f),
+                                        modifier = Modifier.padding(horizontal = 10.dp)
                                     )
                                 }
+                                DropdownMenuItem(
+                                    onClick = {
+                                        languageMenuExpanded = false
+                                        if (!selected) {
+                                            currentLang = option.code
+                                            AppLanguageManager.applyLanguage(activity, context, option.code)
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (selected) accent.copy(alpha = 0.16f) else Color.Transparent
+                                        ),
+                                    leadingIcon = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = option.flagEmoji,
+                                                fontSize = 16.sp
+                                            )
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier
+                                                    .widthIn(min = 34.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(
+                                                        if (selected) accent else colors.elevatedSurface
+                                                    )
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (selected) accent else colors.hairlineBorder,
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = option.badgeCode,
+                                                    color = if (selected) onAccent else colors.textSecondary,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
+                                        }
+                                    },
+                                    text = {
+                                        Text(
+                                            text = option.nativeName,
+                                            color = if (selected) accent else colors.textPrimary,
+                                            fontSize = 14.sp,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    trailingIcon = if (selected) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = stringResource(R.string.common_selected),
+                                                tint = accent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null
+                                )
                             }
                         }
                     }

@@ -73,6 +73,9 @@ class MediaStationRepository(
             "fr" to setOf("\uD83C\uDDEB\uD83C\uDDF7"),
             "es" to setOf("\uD83C\uDDEA\uD83C\uDDF8", "\uD83C\uDDF2\uD83C\uDDFD"),
             "pt" to setOf("\uD83C\uDDF5\uD83C\uDDF9", "\uD83C\uDDE7\uD83C\uDDF7"),
+            "pl" to setOf("\uD83C\uDDF5\uD83C\uDDF1"),
+            "ru" to setOf("\uD83C\uDDF7\uD83C\uDDFA"),
+            "uk" to setOf("\uD83C\uDDFA\uD83C\uDDE6"),
             "en" to setOf("\uD83C\uDDEC\uD83C\uDDE7", "\uD83C\uDDFA\uD83C\uDDF8")
         )
 
@@ -82,6 +85,9 @@ class MediaStationRepository(
             "fr" to Regex("(?<![\\p{L}\\p{N}])(fre|fra|french|francais|français|vostfr|truefrench)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
             "es" to Regex("(?<![\\p{L}\\p{N}])(esp|spa|spanish|espanol|español|latino|castellano)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
             "pt" to Regex("(?<![\\p{L}\\p{N}])(por|portuguese|portugues|português|dublado)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "pl" to Regex("(?<![\\p{L}\\p{N}])(pol|polish|polski|lektor|pldub)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "ru" to Regex("(?<![\\p{L}\\p{N}])(rus|russian|русский|рус|дубляж)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
+            "uk" to Regex("(?<![\\p{L}\\p{N}])(ukr|ukrainian|українська|укр)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
             "en" to Regex("(?<![\\p{L}\\p{N}])(eng|english)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
         )
 
@@ -96,6 +102,9 @@ class MediaStationRepository(
             "fr" to "FRA",
             "es" to "ESP",
             "pt" to "POR",
+            "pl" to "POL",
+            "ru" to "RUS",
+            "uk" to "UKR",
             "en" to "ENG"
         )
     }

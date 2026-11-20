@@ -318,6 +318,16 @@ class NavigationEngine(context: Context) {
         }
     }
 
+    fun refreshTtsLanguage() {
+        runCatching {
+            val locale = AppLanguageManager.localeFor(AppLanguageManager.getSavedLanguage(appContext))
+            val res = tts?.setLanguage(locale)
+            ttsReady = res != TextToSpeech.LANG_MISSING_DATA &&
+                res != TextToSpeech.LANG_NOT_SUPPORTED
+            Log.d(NAV_TAG, "NavigationEngine TTS lingua aggiornata (locale=$locale, ready=$ttsReady)")
+        }
+    }
+
     fun setVoiceGuidance(enabled: Boolean) {
         voiceGuidanceEnabled = enabled
         if (!enabled) {
@@ -889,6 +899,9 @@ class NavigationEngine(context: Context) {
             "fr" -> "fr-FR"
             "es" -> "es-ES"
             "pt" -> "pt-PT"
+            "pl" -> "pl-PL"
+            "ru" -> "ru-RU"
+            "uk" -> "uk-UA"
             else -> "en-US"
         }
         return JSONObject().apply {

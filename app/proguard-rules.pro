@@ -13,6 +13,8 @@
 -keep class com.openlauncher.app.ui.screen.RouteOptionType { *; }
 -keep class com.openlauncher.app.ui.screen.RoutePreviewOption { *; }
 -keep class com.openlauncher.app.ui.screen.AutomotiveMapStyle { *; }
+-keep class com.openlauncher.app.util.AppLanguageOption { *; }
+-keep class com.openlauncher.app.util.AppLanguageManager { *; }
 
 # ── Gson ──
 -keep class com.google.gson.reflect.TypeToken { *; }

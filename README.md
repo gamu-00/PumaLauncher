@@ -9,7 +9,7 @@
 
 Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes, scaling across 6" to 16" displays). It combines split-screen pure-GNSS navigation, an ad-free hybrid YouTube player, contextual live weather, and a unified media station inside a distraction-reduced cockpit UI.
 
-> **Current Release:** `v0.1.1-beta` — Beta build. Core features are functional and signed for release, introducing a pure GNSS Kalman navigation engine, responsive 6"–16" UI scaling, contextual live weather, and an anti-glare daylight theme.
+> **Current Release:** `v0.1.2` — Signed release build introducing a high-contrast Tesla/Apple Maps automotive vector map style (Day/Night with road shields & 3D driving perspective), interactive 3-route preview on Valhalla (Fastest, Alternative, Scenic), full 9-language localization (adding Polish, Russian, and Ukrainian), and a compact automotive language dropdown selector.
 
 ---
 
@@ -22,12 +22,13 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 - **Automotive Landscape Cockpit UI & Responsive Scaling (6" to 16")**
   - Purpose-built for wide horizontal car displays with adaptive Day/Night theming (`CockpitColors`): a high-contrast Dark Cockpit theme and a **Daylight Anti-Glare** theme palette (`Cool Slate / Stone Grey`) to minimize cabin reflections.
   - **Responsive UI Scaling:** 6 discrete scaling presets (`65%`, `80%`, `100%`, `120%`, `140%`, `160%`) paired with zoom-independent physical screen breakpoints, larger dock/drawer icons, and overflow-protected turn-by-turn banners.
-  - Full localization across **6 languages**: English, Italian, German, French, Spanish, and Portuguese.
+  - Full localization across **9 languages** via a compact automotive dropdown selector: English, Italian, German, French, Spanish, Portuguese, Polish (`Polski`), Russian (`Русский`), and Ukrainian (`Українська`), with automatic audio/stream language prioritization across Media Station and YouTube.
 - **Integrated Split-Screen Navigation (MapLibre + Pure GNSS)**
   - Persistent interactive map rendered side-by-side with the media card—no app switching required—with active turn-by-turn routing persisting seamlessly across Home, App Library, and Settings.
+  - **Automotive Vector Map Style (`AutomotiveMapStyle`):** High-contrast Day (*Cool Slate*) and Night (*Obsidian*) vector styling with aggressive POI/footpath decluttering, compact highway/road shields, subtle 3D buildings, and dynamic 45° 3D driving tilt with speed-adaptive zoom.
+  - **3-Route Preview & Valhalla Routing:** Interactive route preview comparing up to 3 Valhalla alternatives (**Fastest**, **Alternative**, and **Scenic** hill/curvy profile) with toll indicators, tap-on-map selection, and split-screen adaptive layout before starting turn-by-turn guidance.
   - **Pure GNSS Engine (`FilteredGpsLocationEngine`):** Dedicated `GPS_PROVIDER` pipeline with physical outlier rejection, 2D constant-velocity Kalman smoothing, standstill anti-jitter, and soft snap-to-route projection.
   - **Cockpit Map Controls:** Native vector directional arrow (`RenderMode.GPS`), free-look camera panning with Compass reset and smooth Recenter, plus a faded traveled-route trail.
-  - Address and POI search powered by **Photon** geocoding, paired with turn-by-turn routing via **Valhalla**.
 - **Hybrid Ad-Free YouTube Player (Up to 720p)**
   - Browse subscriptions, search, and keep your Google account signed in through an isolated `WebView` with persistent cookies and OAuth/2FA popup support.
   - Selecting any video or Short intercepts SPA navigation and hands the stream over to **NewPipeExtractor** + **Media3 ExoPlayer**, eliminating web-injected ads and background visibility pauses.
@@ -90,10 +91,11 @@ app/src/main/java/com/openlauncher/app/
 │   │   └── Sidebar.kt                   # Responsive cockpit dock & clock/status rail
 │   ├── screen/
 │   │   ├── HomeScreen.kt                # Split-screen dashboard layout & physical breakpoints
-│   │   ├── NativeNavigatorPanel.kt      # MapLibre HUD, RenderMode.GPS, compass, recenter & route trail
-│   │   ├── NavigationEngine.kt          # Valhalla routing, TTS guidance & active route state
+│   │   ├── AutomotiveMapStyle.kt        # Day/Night automotive vector map style, road shields & 3D buildings
+│   │   ├── NativeNavigatorPanel.kt      # MapLibre HUD, 3-route preview card, compass, recenter & route trail
+│   │   ├── NavigationEngine.kt          # Valhalla multi-route preview, TTS guidance & active route state
 │   │   ├── AppLibraryScreen.kt          # Paginated app drawer
-│   │   └── SettingsScreen.kt            # Scaling presets, media timeout & cockpit preferences
+│   │   └── SettingsScreen.kt            # Compact language dropdown, scaling presets & cockpit preferences
 │   ├── theme/
 │   │   ├── CockpitColors.kt             # Dark Cockpit & Daylight Anti-Glare palettes
 │   │   └── Theme.kt                     # PhysicalScreenMetrics & Material 3 theme setup
@@ -110,8 +112,8 @@ app/src/main/java/com/openlauncher/app/
 
 ## Installation & Building from Source
 
-### Installing the Beta APK (Testers)
-1. Download `PumaLauncher-v0.1.1-beta-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
+### Installing the Release APK
+1. Download `PumaLauncher-v0.1.2-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
 2. Install it on your Android head unit or AI Box (Android 13 / API 33 recommended) and grant **Location** and **Notification Access** when prompted to enable pure-GNSS navigation and the *Now Playing* media widget.
 
 ### Compiling from Source
@@ -135,10 +137,10 @@ app/src/main/java/com/openlauncher/app/
 
 ---
 
-## Known Limitations & Roadmap (`v0.1.1-beta`)
+## Known Limitations & Roadmap (`v0.1.2`)
 
 - **Upstream YouTube Client Changes:** Because stream extraction depends on `NewPipeExtractor`, periodic server-side changes by YouTube will require updating the `NewPipeExtractor` version in `app/build.gradle.kts`.
-- **Navigation HUD Evolution:** `v0.1.1-beta` introduces pure GNSS Kalman filtering, native vector arrow rendering, free-look/recenter controls, and traveled-route trails; further turn-by-turn HUD polish and offline map enhancements are planned for `v0.2`.
+- **Navigation HUD Evolution:** `v0.1.2` introduces high-contrast Day/Night automotive vector map styling, 3-route preview (Fastest, Alternative, Scenic), pure GNSS Kalman filtering, and 9-language voice guidance; offline map packages and waypoint support are planned for `v0.2`.
 - **Hardware Target:** Layout proportions and scaling presets (`65%`–`160%`) are tuned for landscape head units and automotive displays (6" to 16"); portrait phone screens are not the primary target.
 
 ---

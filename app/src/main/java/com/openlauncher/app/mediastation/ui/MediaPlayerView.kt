@@ -1403,6 +1403,9 @@ private fun preferredAudioLanguageCodes(appLanguage: String): Array<String> = wh
     "fr" -> arrayOf("fr", "fra", "fre")
     "es" -> arrayOf("es", "spa")
     "pt" -> arrayOf("pt", "por")
+    "pl" -> arrayOf("pl", "pol")
+    "ru" -> arrayOf("ru", "rus")
+    "uk" -> arrayOf("uk", "ukr", "ua")
     else -> arrayOf("en", "eng")
 }
 
@@ -1412,6 +1415,9 @@ private fun soberAudioBadge(appLanguage: String): String = when (appLanguage) {
     "fr" -> "FRA"
     "es" -> "ESP"
     "pt" -> "POR"
+    "pl" -> "POL"
+    "ru" -> "RUS"
+    "uk" -> "UKR"
     else -> "ENG"
 }
 
@@ -1428,6 +1434,12 @@ private fun matchesAudioLanguage(appLanguage: String, language: String?, label: 
             lbl.contains("esp") || lbl.contains("spa") || lbl.contains("spanish") || lbl.contains("español") || lbl.contains("espanol") || lbl.contains("latino") || lbl.contains("castellano")
         "pt" -> lang == "pt" || lang.startsWith("pt-") || lang == "por" ||
             lbl.contains("por") || lbl.contains("portug")
+        "pl" -> lang == "pl" || lang.startsWith("pl-") || lang == "pol" ||
+            lbl.contains("pol") || lbl.contains("polish") || lbl.contains("polski") || lbl.contains("lektor")
+        "ru" -> lang == "ru" || lang.startsWith("ru-") || lang == "rus" ||
+            lbl.contains("rus") || lbl.contains("russian") || lbl.contains("рус")
+        "uk" -> lang == "uk" || lang.startsWith("uk-") || lang == "ukr" || lang == "ua" ||
+            lbl.contains("ukr") || lbl.contains("ukrain") || lbl.contains("укр")
         else -> lang == "en" || lang.startsWith("en-") || lang == "eng" ||
             lbl.contains("eng") || lbl.contains("english")
     }

@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & Manifest -->
+    <string name="app_name">PumaLauncher</string>
+    <string name="media_label">Puma Launcher Media</string>
+
+    <!-- Common Actions -->
+    <string name="action_save">Zapisz</string>
+    <string name="action_cancel">Anuluj</string>
+    <string name="action_close">Zamknij</string>
+    <string name="action_back">Wstecz</string>
+    <string name="action_retry">Ponów</string>
+    <string name="action_clear">Wyczyść</string>
+    <string name="action_search">Szukaj</string>
+    <string name="action_paste">Wklej</string>
+    <string name="action_refresh">Odśwież</string>
+    <string name="action_play">Odtwórz</string>
+    <string name="action_pause">Pauza</string>
+    <string name="action_remove">Usuń</string>
+    <string name="action_apply">Zastosuj</string>
+    <string name="action_confirm">Potwierdź</string>
+    <string name="action_reset">Resetuj</string>
+    <string name="common_unknown">Nieznany</string>
+    <string name="common_selected">Wybrano</string>
+
+    <!-- Media Station Card & YouTube -->
+    <string name="card_movies_tv">Filmy i Seriale</string>
+    <string name="card_youtube">YouTube</string>
+    <string name="youtube_topbar_title">YOUTUBE</string>
+
+    <!-- Movies Hub -->
+    <string name="movies_title_upper">FILMY I SERIALE</string>
+    <string name="movies_episodes_upper">ODCINKI</string>
+    <string name="movies_voice_prompt">Szukaj filmów lub seriali</string>
+    <string name="movies_voice_unavailable">Wyszukiwanie głosowe jest niedostępne na tym urządzeniu</string>
+    <string name="movies_voice_search">Wyszukiwanie głosowe</string>
+    <string name="movies_search_placeholder">Szukaj filmów lub seriali...</string>
+    <string name="movies_search_hint">Wpisz lub użyj mikrofonu, aby wyszukać</string>
+    <string name="movies_search_no_results">Brak wyników dla \"%1$s\"</string>
+    <string name="movies_tab_resume">Wznów</string>
+    <string name="movies_tab_movies">Filmy</string>
+    <string name="movies_tab_series">Seriale</string>
+    <string name="movies_continue_watching">Kontynuuj oglądanie</string>
+    <string name="movies_section_movies">Filmy</string>
+    <string name="movies_section_series">Seriale TV</string>
+    <string name="movies_stremio_prompt">Wprowadź swój klucz authKey Stremio, aby zobaczyć rozpoczęte tytuły.</string>
+    <string name="movies_open_settings">Otwórz ustawienia</string>
+    <string name="movies_nothing_to_resume">Brak tytułów do wznowienia</string>
+    <string name="movies_no_titles">Brak dostępnych tytułów</string>
+    <string name="movies_badge_movie">Film</string>
+    <string name="movies_badge_series">Serial</string>
+    <string name="movies_settings_auth_label">Stremio authKey</string>
+    <string name="movies_settings_auth_placeholder">Wklej authKey konta Stremio</string>
+    <string name="movies_settings_addon_label">URL dodatku (Addon Resolver)</string>
+    <string name="movies_settings_addon_placeholder">https://przyklad-addon.org/manifest.json</string>
+    <string name="movies_settings_addon_hint">Końcowe /manifest.json lub / są usuwane automatycznie.</string>
+    <string name="movies_no_episodes">Brak dostępnych odcinków</string>
+    <string name="movies_season_number">Sezon %1$d</string>
+    <string name="movies_episode_fallback">Odcinek %1$d</string>
+    <string name="movies_resume_here">Wznów stąd</string>
+
+    <!-- Media Player & Stream Resolution -->
+    <string name="player_resolving_streams">Szukanie źródeł...</string>
+    <string name="player_error_code">Kod błędu: %1$s</string>
+    <string name="player_switching_source">%1$s — zmiana źródła...</string>
+    <string name="player_audio_badge">Audio: %1$s</string>
+    <string name="player_select_audio">Wybierz ścieżkę dźwiękową</string>
+    <string name="player_source_counter">Źródło %1$d/%2$d</string>
+    <string name="player_select_source">Wybierz źródło (%1$d)</string>
+    <string name="player_source_fallback">Źródło %1$d</string>
+    <string name="player_track_label">Ścieżka %1$d (%2$s)</string>
+    <string name="player_track_short">Ścieżka %1$d</string>
+    <string name="player_active">Aktywna</string>
+    <string name="media_playing">Odtwarzanie</string>
+    <string name="media_no_streams_found">Nie znaleziono strumieni w pamięci podręcznej</string>
+    <string name="media_all_streams_failed">Nie udało się odtworzyć żadnego z dostępnych źródeł.</string>
+    <string name="media_error_addon_not_configured">Nie skonfigurowano URL dodatku</string>
+    <string name="media_error_stremio_api">Błąd API Stremio</string>
+    <string name="media_error_empty_response">Pusta odpowiedź</string>
+    <string name="media_error_search_failed">Błąd wyszukiwania</string>
+    <string name="media_error_load_movies">Nie udało się wczytać filmów</string>
+    <string name="media_error_load_series">Nie udało się wczytać seriali</string>
+    <string name="media_error_stremio_sync">Błąd synchronizacji Stremio</string>
+    <string name="media_error_load_episodes">Nie można wczytać odcinków</string>
+    <string name="media_error_resolve_streams">Błąd wyszukiwania źródeł</string>
+    <string name="media_stream_http_fallback">Strumień HTTP</string>
+
+    <!-- Music Widget & Music App Picker -->
+    <string name="music_title">Muzyka</string>
+    <string name="music_idle_subtitle">Brak odtwarzanego utworu</string>
+    <string name="media_previous">Poprzedni</string>
+    <string name="media_next">Następny</string>
+    <string name="music_picker_title">Wybierz aplikację muzyczną</string>
+    <string name="music_picker_section_music">APLIKACJE MUZYCZNE</string>
+    <string name="music_picker_section_other">INNE APLIKACJE</string>
+
+    <!-- Navigator & Navigation Engine -->
+    <string name="nav_search_content_desc">Szukaj celu</string>
+    <string name="nav_search_placeholder">Szukaj adresu lub celu...</string>
+    <string name="nav_search_close">Zamknij wyszukiwanie</string>
+    <string name="nav_avoid_tolls">Unikaj opłat</string>
+    <string name="nav_searching">Wyszukiwanie...</string>
+    <string name="nav_start_navigation">Rozpocznij nawigację</string>
+    <string name="nav_preview_calculating">Obliczanie tras...</string>
+    <string name="nav_preview_fastest">Najszybsza</string>
+    <string name="nav_preview_alternative">Alternatywna</string>
+    <string name="nav_preview_scenic">Malownicza</string>
+    <string name="nav_preview_toll">Opłaty</string>
+    <string name="nav_preview_no_toll">Bez opłat</string>
+    <string name="nav_preview_start_cta">ROZPOCZNIJ NAWIGACJĘ</string>
+    <string name="nav_preview_cancel">Anuluj</string>
+    <string name="nav_no_results">Brak wyników</string>
+    <string name="nav_network_error">Błąd sieci</string>
+    <string name="nav_route_error">Nie można obliczyć trasy</string>
+    <string name="nav_recenter">Wyśrodkuj</string>
+    <string name="nav_compass_reset">Ustaw kompas na północ</string>
+    <string name="nav_mute_voice">Wycisz komunikaty głosowe</string>
+    <string name="nav_unmute_voice">Włącz komunikaty głosowe</string>
+    <string name="nav_end">Zakończ</string>
+    <string name="nav_eta_format">Cel %1$s • %2$s</string>
+    <string name="nav_default_location">Lokalizacja</string>
+    <string name="nav_default_destination">Cel podróży</string>
+    <string name="nav_tts_recalculating">Przeliczanie trasy</string>
+    <string name="nav_tts_in_300m">Za 300 metrów, %1$s</string>
+    <string name="nav_tts_in_50m">Za 50 metrów, %1$s</string>
+    <string name="nav_maneuver_arrive">Dotarłeś do celu</string>
+    <string name="nav_maneuver_depart">Ruszaj i jedź wyznaczoną trasą</string>
+    <string name="nav_maneuver_depart_street">Jedź po %1$s</string>
+    <string name="nav_maneuver_roundabout">Zjedź z ronda</string>
+    <string name="nav_maneuver_roundabout_street">Zjedź z ronda na %1$s</string>
+    <string name="nav_maneuver_uturn">Zawróć</string>
+    <string name="nav_maneuver_uturn_street">Zawróć na %1$s</string>
+    <string name="nav_maneuver_sharp_left">Skręć ostro w lewo</string>
+    <string name="nav_maneuver_sharp_left_street">Skręć ostro w lewo w %1$s</string>
+    <string name="nav_maneuver_left">Skręć w lewo</string>
+    <string name="nav_maneuver_left_street">Skręć w lewo w %1$s</string>
+    <string name="nav_maneuver_slight_left">Trzymaj się lewej strony</string>
+    <string name="nav_maneuver_slight_left_street">Trzymaj się lewej strony na %1$s</string>
+    <string name="nav_maneuver_sharp_right">Skręć ostro w prawo</string>
+    <string name="nav_maneuver_sharp_right_street">Skręć ostro w prawo w %1$s</string>
+    <string name="nav_maneuver_right">Skręć w prawo</string>
+    <string name="nav_maneuver_right_street">Skręć w prawo w %1$s</string>
+    <string name="nav_maneuver_slight_right">Trzymaj się prawej strony</string>
+    <string name="nav_maneuver_slight_right_street">Trzymaj się prawej strony na %1$s</string>
+    <string name="nav_maneuver_continue">Jedź prosto</string>
+    <string name="nav_maneuver_continue_street">Kontynuuj po %1$s</string>
+    <string name="nav_maneuver_proceed_to">Kieruj się w stronę %1$s</string>
+
+    <!-- Sidebar / Dock & Cold Boot -->
+    <string name="sidebar_network">Sieć</string>
+    <string name="sidebar_gps">GPS</string>
+    <string name="sidebar_app_drawer">Aplikacje</string>
+    <string name="nav_settings">Ustawienia</string>
+    <string name="cold_boot_dialog_title">Ustawienia zimnego startu</string>
+    <string name="cold_boot_auto_launch">Autostart przy uruchomieniu</string>
+    <string name="cold_boot_auto_launch_desc">Automatycznie uruchamiaj Puma Launcher po włączeniu zapłonu</string>
+    <string name="cold_boot_delay_dialog">Opóźnienie startu (czekaj na GPS i sieć)</string>
+    <string name="cold_boot_all_settings">Wszystkie ustawienia</string>
+    <string name="sidebar_pin">Przypnij</string>
+    <string name="sidebar_unpin">Odepnij</string>
+    <string name="sidebar_replace_app">Zastąp aplikację</string>
+    <string name="sidebar_decrease">Zmniejsz</string>
+    <string name="sidebar_increase">Zwiększ</string>
+
+    <!-- App Drawer -->
+    <string name="drawer_choose_app">Wybierz aplikację...</string>
+    <string name="drawer_search_apps">Szukaj wśród %1$d aplikacji...</string>
+    <string name="drawer_no_apps">Nie znaleziono aplikacji</string>
+    <string name="drawer_hidden_suffix">%1$s (ukryta)</string>
+    <string name="drawer_pin_rail">Przypnij do paska</string>
+    <string name="drawer_unpin_rail">Usuń z paska</string>
+    <string name="drawer_hide_app">Ukryj aplikację</string>
+    <string name="drawer_unhide_app">Przywróć aplikację</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title_upper">USTAWIENIA</string>
+    <string name="settings_section_language">Język</string>
+    <string name="settings_language_label">Język Launchera</string>
+    <string name="settings_language_desc">Dotyczy całego interfejsu oraz priorytetu ścieżek audio</string>
+
+    <string name="settings_section_theme_color">Kolor motywu</string>
+    <string name="theme_preset_blue">Błękit Performance</string>
+    <string name="theme_preset_cyan">Lodowy Cyjan</string>
+    <string name="theme_preset_green">Szmaragdowa Zieleń</string>
+    <string name="theme_preset_amber">Bursztyn Mini AA</string>
+    <string name="theme_preset_red">Wyścigowa Czerwień</string>
+    <string name="theme_preset_white">Tytanowa Biel</string>
+
+    <string name="settings_section_app_drawer">Lista aplikacji</string>
+    <string name="settings_show_hidden_apps">Pokaż ukryte aplikacje</string>
+    <string name="settings_hidden_none">Brak ukrytych aplikacji (przytrzymaj aplikację na liście, aby ją ukryć)</string>
+    <string name="settings_hidden_count">Ukryte aplikacje: %1$d — włącz, aby wyświetlić je na liście</string>
+    <string name="settings_restore_hidden">Przywróć wszystkie ukryte aplikacje (%1$d)</string>
+
+    <string name="settings_section_permissions">Uprawnienia</string>
+    <string name="settings_default_launcher">Ustaw jako domyślny Launcher</string>
+    <string name="settings_default_launcher_active">Aktywny — Puma Launcher jest ekranem głównym</string>
+    <string name="settings_default_launcher_inactive">Wymagane, aby stacja uruchamiała się w Puma Launcher</string>
+    <string name="settings_notification_access">Dostęp do powiadomień</string>
+    <string name="settings_notification_granted">Przyznano — sterowanie multimediami aktywne</string>
+    <string name="settings_notification_required">Wymagane dla widżetu odtwarzacza muzyki</string>
+    <string name="settings_location_access">Dostęp do lokalizacji</string>
+    <string name="settings_location_granted">Przyznano — nawigacja GPS aktywna</string>
+    <string name="settings_location_required">Wymagane do nawigacji GPS</string>
+
+    <string name="settings_section_vehicle">Pojazd</string>
+    <string name="settings_vehicle_name">Nazwa pojazdu</string>
+    <string name="settings_vehicle_placeholder">MOJE AUTO</string>
+
+    <string name="settings_section_nav_rail">Pasek boczny</string>
+    <string name="settings_no_pinned">Brak przypiętych aplikacji</string>
+    <string name="settings_no_pinned_desc">Przytrzymaj aplikację na liście lub pasku, aby ją przypiąć</string>
+    <string name="settings_pinned_slot">Przypięta %1$d</string>
+
+    <string name="settings_section_autostart">Autostart</string>
+    <string name="settings_startup_delay">Opóźnienie uruchomienia</string>
+    <string name="settings_startup_delay_desc">Poczekaj na sygnał GPS i sieć przed startem</string>
+
+    <string name="settings_section_appearance">Wygląd</string>
+    <string name="settings_display_mode">Tryb wyświetlania</string>
+    <string name="settings_mode_dark_desc">Zawsze ciemny</string>
+    <string name="settings_mode_light_desc">Zawsze jasny</string>
+    <string name="settings_mode_auto_desc">Wschód / zachód słońca</string>
+    <string name="settings_mode_system_desc">Zgodnie z motywem systemu</string>
+    <string name="settings_mode_dark">Ciemny</string>
+    <string name="settings_mode_light">Jasny</string>
+    <string name="settings_mode_sunset">Auto</string>
+    <string name="settings_mode_system">System</string>
+
+    <string name="settings_background">Tło</string>
+    <string name="settings_bg_gradient">Gradient</string>
+    <string name="settings_bg_solid">Jednolity kolor</string>
+    <string name="settings_default_upper">DOMYŚLNE</string>
+    <string name="settings_font_color">Kolor czcionki</string>
+    <string name="settings_font_color_desc">Własny kolor tekstu dla aktywnego motywu</string>
+    <string name="settings_use_gradient">Użyj gradientu</string>
+    <string name="settings_use_gradient_desc">Połącz dwa kolory jako tło</string>
+    <string name="settings_gradient_direction">Kierunek gradientu</string>
+    <string name="settings_grad_top_bottom_desc">Z góry na dół</string>
+    <string name="settings_grad_left_right_desc">Od lewej do prawej</string>
+    <string name="settings_grad_diagonal_desc">Ukośnie (Liniowy)</string>
+    <string name="settings_grad_radial_desc">Promieniście (Kołowy)</string>
+    <string name="settings_grad_vertical">Pionowo</string>
+    <string name="settings_grad_horizontal">Poziomo</string>
+    <string name="settings_grad_diagonal">Ukośnie</string>
+    <string name="settings_grad_radial">Promieniście</string>
+    <string name="settings_set_wallpaper">Ustaw tapetę</string>
+    <string name="settings_wallpaper_active">Własna tapeta aktywna</string>
+    <string name="settings_wallpaper_choose">Wybierz obraz z galerii</string>
+    <string name="settings_wallpaper_dim">Przyciemnienie tapety</string>
+    <string name="settings_remove_wallpaper">USUŃ TAPETĘ</string>
+
+    <string name="settings_section_typography">Typografia</string>
+    <string name="settings_font">Czcionka</string>
+    <string name="settings_font_system">Systemowa</string>
+    <string name="settings_bold_font">Pogrubiona czcionka</string>
+    <string name="settings_bold_font_desc">Wyraźniejszy krój wszystkich tekstów</string>
+    <string name="settings_text_scale">Skala tekstu</string>
+    <string name="settings_ui_scale">Skala interfejsu</string>
+    <string name="settings_ui_scale_desc">%1$d%% — skaluje wszystkie elementy</string>
+
+    <string name="settings_section_gps">GPS i Kalibracja</string>
+    <string name="settings_reset_agps">Resetuj dane A-GPS</string>
+    <string name="settings_reset_agps_desc">Wymusza zimny start w celu pobrania nowych orbit satelitów</string>
+    <string name="settings_agps_clearing">Czyszczenie pamięci A-GPS...</string>
+    <string name="settings_agps_success">Wymuszono zimny start — wyjedź na otwartą przestrzeń (2–3 min)</string>
+    <string name="settings_agps_unsupported">Nieobsługiwane przez sterownik GPS urządzenia — nie usunięto danych</string>
+
+    <string name="settings_section_maintenance">Konserwacja</string>
+    <string name="settings_reset_defaults">Przywróć ustawienia domyślne</string>
+    <string name="settings_reset_dialog_title">Resetuj ustawienia</string>
+    <string name="settings_reset_dialog_message">Czy na pewno chcesz przywrócić wszystkie ustawienia domyślne? Tej operacji nie można cofnąć.</string>
+    <string name="settings_dialog_accent_color">Kolor akcentu</string>
+    <string name="settings_dialog_bg_color">Kolor tła</string>
+    <string name="settings_dialog_gradient_end">Końcowy kolor gradientu</string>
+    <string name="settings_dialog_font_color">Kolor czcionki</string>
+
+    <!-- Color Picker -->
+    <string name="color_picker_presets">Szablony</string>
+    <string name="color_picker_custom">Własny</string>
+    <string name="color_picker_hue">Odcień</string>
+    <string name="color_picker_saturation">Nasycenie</string>
+    <string name="color_picker_brightness">Jasność</string>
+
+    <!-- Onboarding Screen -->
+    <string name="onboarding_subtitle">Zaprojektowany dla kokpitu</string>
+    <string name="onboarding_step_intro">Wprowadzenie</string>
+    <string name="onboarding_step_location">Usługi lokalizacji</string>
+    <string name="onboarding_step_media">Integracja multimediów</string>
+    <string name="onboarding_step_ready">Gotowe do drogi</string>
+    <string name="onboarding_back">WSTECZ</string>
+    <string name="onboarding_get_started">ROZPOCZNIJ</string>
+    <string name="onboarding_continue">DALEJ</string>
+    <string name="onboarding_skip">POMIŃ NA RAZIE</string>
+    <string name="onboarding_finish">ZAKOŃCZ</string>
+    <string name="onboarding_intro_title">WITAJ W PUMA LAUNCHER</string>
+    <string name="onboarding_intro_desc">Przejrzysty, nowoczesny kokpit poziomy stworzony jako idealny towarzysz ekranu Twojego samochodu.</string>
+    <string name="onboarding_bullet_nav_title">Nawigacja zakręt po zakręcie</string>
+    <string name="onboarding_bullet_nav_desc">Wbudowana nawigacja MapLibre ze wskazówkami głosowymi, wyborem tras i omijaniem opłat.</string>
+    <string name="onboarding_bullet_dash_title">Personalizowany kokpit samochodowy</string>
+    <string name="onboarding_bullet_dash_desc">Dopasuj kolory akcentów, tapety, gradienty tła i typografię do wyświetlacza pojazdu.</string>
+    <string name="onboarding_bullet_media_title">Multimedia i Rozrywka na żywo</string>
+    <string name="onboarding_bullet_media_desc">Steruj dowolnym odtwarzaczem muzyki bezpośrednio z kokpitu oraz oglądaj Filmy, Seriale i YouTube.</string>
+    <string name="onboarding_location_title">NAWIGACJA I LOKALIZACJA</string>
+    <string name="onboarding_location_desc">Aby obsługiwać nawigację oraz prędkościomierz GPS w czasie rzeczywistym, Puma Launcher wymaga dostępu do lokalizacji.</string>
+    <string name="onboarding_perm_granted">Uprawnienie przyznane</string>
+    <string name="onboarding_perm_required">Wymagane uprawnienie</string>
+    <string name="onboarding_location_active">Nawigacja GPS jest aktywna i gotowa.</string>
+    <string name="onboarding_location_disabled">Dostęp do lokalizacji jest obecnie wyłączony.</string>
+    <string name="onboarding_grant_access">PRZYZNAJ DOSTĘP</string>
+    <string name="onboarding_media_title">INTEGRACJA MULTIMEDIÓW</string>
+    <string name="onboarding_media_desc">Aby wyświetlać okładki albumów, tytuły utworów i sterowanie odtwarzaniem, Puma Launcher odczytuje aktywne sesje multimedialne.</string>
+    <string name="onboarding_media_granted">Dostęp do powiadomień przyznany</string>
+    <string name="onboarding_media_required">Wymagany dostęp do powiadomień</string>
+    <string name="onboarding_media_active">Widżet odtwarzacza muzyki jest połączony.</string>
+    <string name="onboarding_media_disabled">Widżet muzyki pozostanie nieaktywny do czasu włączenia uprawnienia.</string>
+    <string name="onboarding_enable_media">WŁĄCZ DOSTĘP DO MULTIMEDIÓW</string>
+    <string name="onboarding_ready_title">GOTOWY DO DROGI!</string>
+    <string name="onboarding_ready_desc">Wszystko gotowe. Możesz ustawić Puma Launcher jako domyślną aplikację ekranu głównego, aby uruchamiał się automatycznie po starcie pojazdu.</string>
+    <string name="onboarding_set_default">USTAW JAKO DOMYŚLNY</string>
+    <string name="youtube_loading_stream">Ładowanie wideo...</string>
+    <string name="youtube_video_unplayable">Nie można odtworzyć wideo</string>
+    <string name="youtube_back_to_youtube">Wróć do YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Pogoda</string>
+    <string name="weather_clear">Bezchmurnie</string>
+    <string name="weather_partly_cloudy">Częściowe zachmurzenie</string>
+    <string name="weather_cloudy">Pochmurno</string>
+    <string name="weather_fog">Mgła</string>
+    <string name="weather_rain">Deszcz</string>
+    <string name="weather_thunderstorm">Burza</string>
+    <string name="weather_snow">Śnieg</string>
+    <string name="weather_feels_like">Odczuwalna %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Aktualizowanie pogody...</string>
+    <string name="weather_tap_refresh">Dotknij, aby odświeżyć</string>
+    <string name="weather_return_music">Muzyka</string>
+    <string name="weather_return_media">Media</string>
+    <string name="weather_return_music_desc">Wróć do odtwarzacza muzyki</string>
+    <string name="weather_return_media_desc">Wróć do centrum multimediów</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Limit czasu pauzy multimediów</string>
+    <string name="settings_media_pause_timeout_desc">Zachowaj wstrzymane wideo i pogodę przed zresetowaniem</string>
+    <string name="settings_minutes_value">%1$d min</string>
+</resources>

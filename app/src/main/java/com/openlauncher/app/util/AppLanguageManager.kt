@@ -11,11 +11,13 @@ import java.util.Locale
 
 data class AppLanguageOption(
     val code: String,
-    val nativeName: String
+    val nativeName: String,
+    val flagEmoji: String,
+    val badgeCode: String = code.uppercase(Locale.ROOT)
 )
 
 /**
- * Manages the unified 6-language preference (`en`, `de`, `it`, `fr`, `es`, `pt`)
+ * Manages the unified 9-language preference (`en`, `de`, `it`, `fr`, `es`, `pt`, `pl`, `ru`, `uk`)
  * stored in SharedPreferences("launcher_prefs", key="app_language", default="en").
  */
 object AppLanguageManager {
@@ -24,12 +26,15 @@ object AppLanguageManager {
     const val DEFAULT_LANGUAGE = "en"
 
     val SUPPORTED_LANGUAGES = listOf(
-        AppLanguageOption("en", "English"),
-        AppLanguageOption("de", "Deutsch"),
-        AppLanguageOption("it", "Italiano"),
-        AppLanguageOption("fr", "Français"),
-        AppLanguageOption("es", "Español"),
-        AppLanguageOption("pt", "Português")
+        AppLanguageOption("en", "English", "\uD83C\uDDEC\uD83C\uDDE7"),
+        AppLanguageOption("de", "Deutsch", "\uD83C\uDDE9\uD83C\uDDEA"),
+        AppLanguageOption("it", "Italiano", "\uD83C\uDDEE\uD83C\uDDF9"),
+        AppLanguageOption("fr", "Français", "\uD83C\uDDEB\uD83C\uDDF7"),
+        AppLanguageOption("es", "Español", "\uD83C\uDDEA\uD83C\uDDF8"),
+        AppLanguageOption("pt", "Português", "\uD83C\uDDF5\uD83C\uDDF9"),
+        AppLanguageOption("pl", "Polski", "\uD83C\uDDF5\uD83C\uDDF1"),
+        AppLanguageOption("ru", "Русский", "\uD83C\uDDF7\uD83C\uDDFA"),
+        AppLanguageOption("uk", "Українська", "\uD83C\uDDFA\uD83C\uDDE6")
     )
 
     private val supportedCodes = SUPPORTED_LANGUAGES.map { it.code }.toSet()

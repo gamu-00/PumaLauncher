@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & Manifest -->
+    <string name="app_name">PumaLauncher</string>
+    <string name="media_label">Puma Launcher Media</string>
+
+    <!-- Common Actions -->
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_search">Поиск</string>
+    <string name="action_paste">Вставить</string>
+    <string name="action_refresh">Обновить</string>
+    <string name="action_play">Воспроизвести</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_remove">Удалить</string>
+    <string name="action_apply">Применить</string>
+    <string name="action_confirm">Подтвердить</string>
+    <string name="action_reset">Сбросить</string>
+    <string name="common_unknown">Неизвестно</string>
+    <string name="common_selected">Выбрано</string>
+
+    <!-- Media Station Card & YouTube -->
+    <string name="card_movies_tv">Фильмы и Сериалы</string>
+    <string name="card_youtube">YouTube</string>
+    <string name="youtube_topbar_title">YOUTUBE</string>
+
+    <!-- Movies Hub -->
+    <string name="movies_title_upper">ФИЛЬМЫ И СЕРИАЛЫ</string>
+    <string name="movies_episodes_upper">СЕРИИ</string>
+    <string name="movies_voice_prompt">Поиск фильмов или сериалов</string>
+    <string name="movies_voice_unavailable">Голосовой поиск недоступен на этом устройстве</string>
+    <string name="movies_voice_search">Голосовой поиск</string>
+    <string name="movies_search_placeholder">Поиск фильмов или сериалов...</string>
+    <string name="movies_search_hint">Введите текст или используйте микрофон</string>
+    <string name="movies_search_no_results">Нет результатов для «%1$s»</string>
+    <string name="movies_tab_resume">Продолжить</string>
+    <string name="movies_tab_movies">Фильмы</string>
+    <string name="movies_tab_series">Сериалы</string>
+    <string name="movies_continue_watching">Продолжить просмотр</string>
+    <string name="movies_section_movies">Фильмы</string>
+    <string name="movies_section_series">Сериалы</string>
+    <string name="movies_stremio_prompt">Введите ваш Stremio authKey, чтобы увидеть начатые фильмы и сериалы.</string>
+    <string name="movies_open_settings">Открыть настройки</string>
+    <string name="movies_nothing_to_resume">Нет начатых видео</string>
+    <string name="movies_no_titles">Нет доступных видео</string>
+    <string name="movies_badge_movie">Фильм</string>
+    <string name="movies_badge_series">Сериал</string>
+    <string name="movies_settings_auth_label">Stremio authKey</string>
+    <string name="movies_settings_auth_placeholder">Вставьте authKey аккаунта Stremio</string>
+    <string name="movies_settings_addon_label">URL аддона (Addon Resolver)</string>
+    <string name="movies_settings_addon_placeholder">https://example-addon.org/manifest.json</string>
+    <string name="movies_settings_addon_hint">Суффиксы /manifest.json или / удаляются автоматически.</string>
+    <string name="movies_no_episodes">Нет доступных серий</string>
+    <string name="movies_season_number">Сезон %1$d</string>
+    <string name="movies_episode_fallback">Серия %1$d</string>
+    <string name="movies_resume_here">Продолжить отсюда</string>
+
+    <!-- Media Player & Stream Resolution -->
+    <string name="player_resolving_streams">Поиск источников...</string>
+    <string name="player_error_code">Код ошибки: %1$s</string>
+    <string name="player_switching_source">%1$s — смена источника...</string>
+    <string name="player_audio_badge">Аудио: %1$s</string>
+    <string name="player_select_audio">Выбрать аудиодорожку</string>
+    <string name="player_source_counter">Источник %1$d/%2$d</string>
+    <string name="player_select_source">Выбрать источник (%1$d)</string>
+    <string name="player_source_fallback">Источник %1$d</string>
+    <string name="player_track_label">Дорожка %1$d (%2$s)</string>
+    <string name="player_track_short">Дорожка %1$d</string>
+    <string name="player_active">Активна</string>
+    <string name="media_playing">Воспроизведение</string>
+    <string name="media_no_streams_found">Источники в кэше не найдены</string>
+    <string name="media_all_streams_failed">Не удалось воспроизвести ни один из доступных источников.</string>
+    <string name="media_error_addon_not_configured">URL аддона не настроен</string>
+    <string name="media_error_stremio_api">Ошибка API Stremio</string>
+    <string name="media_error_empty_response">Пустой ответ сервера</string>
+    <string name="media_error_search_failed">Ошибка поиска</string>
+    <string name="media_error_load_movies">Не удалось загрузить фильмы</string>
+    <string name="media_error_load_series">Не удалось загрузить сериалы</string>
+    <string name="media_error_stremio_sync">Ошибка синхронизации Stremio</string>
+    <string name="media_error_load_episodes">Не удалось загрузить серии</string>
+    <string name="media_error_resolve_streams">Ошибка получения источников</string>
+    <string name="media_stream_http_fallback">HTTP-поток</string>
+
+    <!-- Music Widget & Music App Picker -->
+    <string name="music_title">Музыка</string>
+    <string name="music_idle_subtitle">Ничего не воспроизводится</string>
+    <string name="media_previous">Предыдущий</string>
+    <string name="media_next">Следующий</string>
+    <string name="music_picker_title">Выберите музыкальное приложение</string>
+    <string name="music_picker_section_music">МУЗЫКАЛЬНЫЕ ПРИЛОЖЕНИЯ</string>
+    <string name="music_picker_section_other">ДРУГИЕ ПРИЛОЖЕНИЯ</string>
+
+    <!-- Navigator & Navigation Engine -->
+    <string name="nav_search_content_desc">Поиск пункта назначения</string>
+    <string name="nav_search_placeholder">Введите адрес или место...</string>
+    <string name="nav_search_close">Закрыть поиск</string>
+    <string name="nav_avoid_tolls">Без платных дорог</string>
+    <string name="nav_searching">Поиск...</string>
+    <string name="nav_start_navigation">Начать навигацию</string>
+    <string name="nav_preview_calculating">Расчёт маршрутов...</string>
+    <string name="nav_preview_fastest">Быстрый</string>
+    <string name="nav_preview_alternative">Альтернативный</string>
+    <string name="nav_preview_scenic">Живописный</string>
+    <string name="nav_preview_toll">Платно</string>
+    <string name="nav_preview_no_toll">Без оплат</string>
+    <string name="nav_preview_start_cta">НАЧАТЬ НАВИГАЦИЮ</string>
+    <string name="nav_preview_cancel">Отмена</string>
+    <string name="nav_no_results">Ничего не найдено</string>
+    <string name="nav_network_error">Ошибка сети</string>
+    <string name="nav_route_error">Не удалось построить маршрут</string>
+    <string name="nav_recenter">Центр</string>
+    <string name="nav_compass_reset">Ориентация на север</string>
+    <string name="nav_mute_voice">Отключить голосовые подсказки</string>
+    <string name="nav_unmute_voice">Включить голосовые подсказки</string>
+    <string name="nav_end">Стоп</string>
+    <string name="nav_eta_format">Прибытие %1$s • %2$s</string>
+    <string name="nav_default_location">Позиция</string>
+    <string name="nav_default_destination">Пункт назначения</string>
+    <string name="nav_tts_recalculating">Перестроение маршрута</string>
+    <string name="nav_tts_in_300m">Через 300 метров, %1$s</string>
+    <string name="nav_tts_in_50m">Через 50 метров, %1$s</string>
+    <string name="nav_maneuver_arrive">Вы прибыли в пункт назначения</string>
+    <string name="nav_maneuver_depart">Начните движение по маршруту</string>
+    <string name="nav_maneuver_depart_street">Двигайтесь по %1$s</string>
+    <string name="nav_maneuver_roundabout">На кольце сверните на съезд</string>
+    <string name="nav_maneuver_roundabout_street">На кольце сверните на %1$s</string>
+    <string name="nav_maneuver_uturn">Выполните разворот</string>
+    <string name="nav_maneuver_uturn_street">Выполните разворот на %1$s</string>
+    <string name="nav_maneuver_sharp_left">Резко поверните налево</string>
+    <string name="nav_maneuver_sharp_left_street">Резко поверните налево на %1$s</string>
+    <string name="nav_maneuver_left">Поверните налево</string>
+    <string name="nav_maneuver_left_street">Поверните налево на %1$s</string>
+    <string name="nav_maneuver_slight_left">Держитесь левее</string>
+    <string name="nav_maneuver_slight_left_street">Держитесь левее на %1$s</string>
+    <string name="nav_maneuver_sharp_right">Резко поверните направо</string>
+    <string name="nav_maneuver_sharp_right_street">Резко поверните направо на %1$s</string>
+    <string name="nav_maneuver_right">Поверните направо</string>
+    <string name="nav_maneuver_right_street">Поверните направо на %1$s</string>
+    <string name="nav_maneuver_slight_right">Держитесь правее</string>
+    <string name="nav_maneuver_slight_right_street">Держитесь правее на %1$s</string>
+    <string name="nav_maneuver_continue">Продолжайте движение прямо</string>
+    <string name="nav_maneuver_continue_street">Продолжайте движение по %1$s</string>
+    <string name="nav_maneuver_proceed_to">Двигайтесь в сторону %1$s</string>
+
+    <!-- Sidebar / Dock & Cold Boot -->
+    <string name="sidebar_network">Сеть</string>
+    <string name="sidebar_gps">GPS</string>
+    <string name="sidebar_app_drawer">Приложения</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="cold_boot_dialog_title">Настройки холодного старта</string>
+    <string name="cold_boot_auto_launch">Автозапуск при включении</string>
+    <string name="cold_boot_auto_launch_desc">Автоматически запускать Puma Launcher при включении ГУ</string>
+    <string name="cold_boot_delay_dialog">Задержка запуска (ожидание GPS и сети)</string>
+    <string name="cold_boot_all_settings">Все настройки</string>
+    <string name="sidebar_pin">Закрепить</string>
+    <string name="sidebar_unpin">Открепить</string>
+    <string name="sidebar_replace_app">Заменить приложение</string>
+    <string name="sidebar_decrease">Уменьшить</string>
+    <string name="sidebar_increase">Увеличить</string>
+
+    <!-- App Drawer -->
+    <string name="drawer_choose_app">Выберите приложение...</string>
+    <string name="drawer_search_apps">Поиск среди %1$d приложений...</string>
+    <string name="drawer_no_apps">Приложения не найдены</string>
+    <string name="drawer_hidden_suffix">%1$s (скрыто)</string>
+    <string name="drawer_pin_rail">Закрепить на панели</string>
+    <string name="drawer_unpin_rail">Убрать с панели</string>
+    <string name="drawer_hide_app">Скрыть приложение</string>
+    <string name="drawer_unhide_app">Показать приложение</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title_upper">НАСТРОЙКИ</string>
+    <string name="settings_section_language">Язык</string>
+    <string name="settings_language_label">Язык лаунчера</string>
+    <string name="settings_language_desc">Применяется ко всему интерфейсу и приоритету аудиопотоков</string>
+
+    <string name="settings_section_theme_color">Цвет темы</string>
+    <string name="theme_preset_blue">Синий Performance</string>
+    <string name="theme_preset_cyan">Ледяной циан</string>
+    <string name="theme_preset_green">Изумрудный</string>
+    <string name="theme_preset_amber">Янтарный Mini AA</string>
+    <string name="theme_preset_red">Гоночный красный</string>
+    <string name="theme_preset_white">Титановый белый</string>
+
+    <string name="settings_section_app_drawer">Меню приложений</string>
+    <string name="settings_show_hidden_apps">Показывать скрытые приложения</string>
+    <string name="settings_hidden_none">Нет скрытых приложений (удерживайте иконку в меню, чтобы скрыть)</string>
+    <string name="settings_hidden_count">Скрыто приложений: %1$d — включите для отображения</string>
+    <string name="settings_restore_hidden">Восстановить все скрытые приложения (%1$d)</string>
+
+    <string name="settings_section_permissions">Разрешения</string>
+    <string name="settings_default_launcher">Установить лаунчером по умолчанию</string>
+    <string name="settings_default_launcher_active">Активно — Puma Launcher выбран домашним экраном</string>
+    <string name="settings_default_launcher_inactive">Необходимо для автоматического запуска при старте авто</string>
+    <string name="settings_notification_access">Доступ к уведомлениям</string>
+    <string name="settings_notification_granted">Разрешено — управление медиа активно</string>
+    <string name="settings_notification_required">Необходимо для работы музыкального виджета</string>
+    <string name="settings_location_access">Доступ к геопозиции</string>
+    <string name="settings_location_granted">Разрешено — GPS-навигация активна</string>
+    <string name="settings_location_required">Необходимо для GPS-навигации</string>
+
+    <string name="settings_section_vehicle">Автомобиль</string>
+    <string name="settings_vehicle_name">Название автомобиля</string>
+    <string name="settings_vehicle_placeholder">МОЁ АВТО</string>
+
+    <string name="settings_section_nav_rail">Боковая панель</string>
+    <string name="settings_no_pinned">Нет закреплённых приложений</string>
+    <string name="settings_no_pinned_desc">Удерживайте приложение в меню или на панели, чтобы закрепить</string>
+    <string name="settings_pinned_slot">Закреплено %1$d</string>
+
+    <string name="settings_section_autostart">Автозапуск</string>
+    <string name="settings_startup_delay">Задержка запуска</string>
+    <string name="settings_startup_delay_desc">Ожидание сигнала GPS и сети перед стартом</string>
+
+    <string name="settings_section_appearance">Внешний вид</string>
+    <string name="settings_display_mode">Режим экрана</string>
+    <string name="settings_mode_dark_desc">Всегда тёмный</string>
+    <string name="settings_mode_light_desc">Всегда светлый</string>
+    <string name="settings_mode_auto_desc">По восходу и закату</string>
+    <string name="settings_mode_system_desc">Как в системе</string>
+    <string name="settings_mode_dark">Тёмный</string>
+    <string name="settings_mode_light">Светлый</string>
+    <string name="settings_mode_sunset">Авто</string>
+    <string name="settings_mode_system">Система</string>
+
+    <string name="settings_background">Фон</string>
+    <string name="settings_bg_gradient">Градиент</string>
+    <string name="settings_bg_solid">Сплошной цвет</string>
+    <string name="settings_default_upper">СБРОС</string>
+    <string name="settings_font_color">Цвет текста</string>
+    <string name="settings_font_color_desc">Свой цвет шрифта для активной темы</string>
+    <string name="settings_use_gradient">Использовать градиент</string>
+    <string name="settings_use_gradient_desc">Плавный переход между двумя цветами фона</string>
+    <string name="settings_gradient_direction">Направление градиента</string>
+    <string name="settings_grad_top_bottom_desc">Сверху вниз</string>
+    <string name="settings_grad_left_right_desc">Слева направо</string>
+    <string name="settings_grad_diagonal_desc">По диагонали (линейный)</string>
+    <string name="settings_grad_radial_desc">Радиальный (круговой)</string>
+    <string name="settings_grad_vertical">Вертикально</string>
+    <string name="settings_grad_horizontal">Горизонтально</string>
+    <string name="settings_grad_diagonal">Диагональ</string>
+    <string name="settings_grad_radial">Радиально</string>
+    <string name="settings_set_wallpaper">Установить обои</string>
+    <string name="settings_wallpaper_active">Пользовательские обои активны</string>
+    <string name="settings_wallpaper_choose">Выбрать изображение из галереи</string>
+    <string name="settings_wallpaper_dim">Затемнение обоев</string>
+    <string name="settings_remove_wallpaper">УДАЛИТЬ ОБОИ</string>
+
+    <string name="settings_section_typography">Типографика</string>
+    <string name="settings_font">Шрифт</string>
+    <string name="settings_font_system">Системный</string>
+    <string name="settings_bold_font">Жирный шрифт</string>
+    <string name="settings_bold_font_desc">Увеличенная толщина всех надписей</string>
+    <string name="settings_text_scale">Размер текста</string>
+    <string name="settings_ui_scale">Масштаб интерфейса</string>
+    <string name="settings_ui_scale_desc">%1$d%% — масштабирует все элементы</string>
+
+    <string name="settings_section_gps">GPS и Калибровка</string>
+    <string name="settings_reset_agps">Сбросить данные A-GPS</string>
+    <string name="settings_reset_agps_desc">Принудительный холодный старт для обновления орбит спутников</string>
+    <string name="settings_agps_clearing">Очистка кэша A-GPS...</string>
+    <string name="settings_agps_success">Холодный старт выполнен — выезжайте на открытое место (2–3 мин)</string>
+    <string name="settings_agps_unsupported">Не поддерживается GPS-драйвером устройства — данные не очищены</string>
+
+    <string name="settings_section_maintenance">Обслуживание</string>
+    <string name="settings_reset_defaults">Сбросить настройки по умолчанию</string>
+    <string name="settings_reset_dialog_title">Сброс настроек</string>
+    <string name="settings_reset_dialog_message">Вы уверены, что хотите сбросить все настройки к значениям по умолчанию? Это действие нельзя отменить.</string>
+    <string name="settings_dialog_accent_color">Цвет акцента</string>
+    <string name="settings_dialog_bg_color">Цвет фона</string>
+    <string name="settings_dialog_gradient_end">Конечный цвет градиента</string>
+    <string name="settings_dialog_font_color">Цвет текста</string>
+
+    <!-- Color Picker -->
+    <string name="color_picker_presets">Шаблоны</string>
+    <string name="color_picker_custom">Свой цвет</string>
+    <string name="color_picker_hue">Тон</string>
+    <string name="color_picker_saturation">Насыщенность</string>
+    <string name="color_picker_brightness">Яркость</string>
+
+    <!-- Onboarding Screen -->
+    <string name="onboarding_subtitle">Создан для приборной панели</string>
+    <string name="onboarding_step_intro">Введение</string>
+    <string name="onboarding_step_location">Геопозиция</string>
+    <string name="onboarding_step_media">Мультимедиа</string>
+    <string name="onboarding_step_ready">Готово</string>
+    <string name="onboarding_back">НАЗАД</string>
+    <string name="onboarding_get_started">НАЧАТЬ</string>
+    <string name="onboarding_continue">ДАЛЕЕ</string>
+    <string name="onboarding_skip">ПРОПУСТИТЬ</string>
+    <string name="onboarding_finish">ЗАВЕРШИТЬ</string>
+    <string name="onboarding_intro_title">ДОБРО ПОЖАЛОВАТЬ В PUMA LAUNCHER</string>
+    <string name="onboarding_intro_desc">Современная горизонтальная панель управления, созданная специально для экрана вашего автомобиля.</string>
+    <string name="onboarding_bullet_nav_title">Пошаговая навигация</string>
+    <string name="onboarding_bullet_nav_desc">Встроенная навигация MapLibre с голосовыми подсказками, выбором маршрутов и объездом платных дорог.</string>
+    <string name="onboarding_bullet_dash_title">Настраиваемый автомобильный кокпит</string>
+    <string name="onboarding_bullet_dash_desc">Настраивайте акцентные цвета, обои, градиенты и шрифты под дисплей вашего авто.</string>
+    <string name="onboarding_bullet_media_title">Музыка и Развлечения</string>
+    <string name="onboarding_bullet_media_desc">Управляйте любым музыкальным плеером прямо с экрана и смотрите Фильмы, Сериалы и YouTube.</string>
+    <string name="onboarding_location_title">НАВИГАЦИЯ И ГЕОПОЗИЦИЯ</string>
+    <string name="onboarding_location_desc">Для работы пошаговой навигации и отображения реальной скорости по GPS приложению Puma Launcher требуется доступ к геопозиции.</string>
+    <string name="onboarding_perm_granted">Разрешение получено</string>
+    <string name="onboarding_perm_required">Требуется разрешение</string>
+    <string name="onboarding_location_active">GPS-навигация активна и готова к работе.</string>
+    <string name="onboarding_location_disabled">Доступ к геопозиции сейчас отключён.</string>
+    <string name="onboarding_grant_access">РАЗРЕШИТЬ ДОСТУП</string>
+    <string name="onboarding_media_title">ИНТЕГРАЦИЯ МУЛЬТИМЕДИА</string>
+    <string name="onboarding_media_desc">Чтобы отображать обложки альбомов, названия треков и кнопки управления плером, Puma Launcher отслеживает активные медиасессии.</string>
+    <string name="onboarding_media_granted">Доступ к уведомлениям получен</string>
+    <string name="onboarding_media_required">Требуется доступ к уведомлениям</string>
+    <string name="onboarding_media_active">Музыкальный виджет подключён.</string>
+    <string name="onboarding_media_disabled">Музыкальный виджет будет неактивен до предоставления доступа.</string>
+    <string name="onboarding_enable_media">ВКЛЮЧИТЬ ДОСТУП К МЕДИА</string>
+    <string name="onboarding_ready_title">ГОТОВЫ К ПОЕЗДКЕ!</string>
+    <string name="onboarding_ready_desc">Всё настроено. Вы можете назначить Puma Launcher домашним экраном по умолчанию, чтобы он запускался автоматически при запуске автомобиля.</string>
+    <string name="onboarding_set_default">СДЕЛАТЬ ПО УМОЛЧАНИЮ</string>
+    <string name="youtube_loading_stream">Загрузка видео...</string>
+    <string name="youtube_video_unplayable">Видео недоступно для воспроизведения</string>
+    <string name="youtube_back_to_youtube">Назад в YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Погода</string>
+    <string name="weather_clear">Ясно</string>
+    <string name="weather_partly_cloudy">Переменная облачность</string>
+    <string name="weather_cloudy">Облачно</string>
+    <string name="weather_fog">Туман</string>
+    <string name="weather_rain">Дождь</string>
+    <string name="weather_thunderstorm">Гроза</string>
+    <string name="weather_snow">Снег</string>
+    <string name="weather_feels_like">Ощущается как %1$d°</string>
+    <string name="weather_wind_kmh">%1$d км/ч</string>
+    <string name="weather_loading">Обновление погоды...</string>
+    <string name="weather_tap_refresh">Нажмите для обновления</string>
+    <string name="weather_return_music">Музыка</string>
+    <string name="weather_return_media">Медиа</string>
+    <string name="weather_return_music_desc">Вернуться к музыкальному плееру</string>
+    <string name="weather_return_media_desc">Вернуться в медиацентр</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Тайм-аут паузы медиа</string>
+    <string name="settings_media_pause_timeout_desc">Сохранять видео на паузе и погоду до сброса</string>
+    <string name="settings_minutes_value">%1$d мин</string>
+</resources>

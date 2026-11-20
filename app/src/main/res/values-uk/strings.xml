@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & Manifest -->
+    <string name="app_name">PumaLauncher</string>
+    <string name="media_label">Puma Launcher Media</string>
+
+    <!-- Common Actions -->
+    <string name="action_save">Зберегти</string>
+    <string name="action_cancel">Скасувати</string>
+    <string name="action_close">Закрити</string>
+    <string name="action_back">Назад</string>
+    <string name="action_retry">Повторити</string>
+    <string name="action_clear">Очистити</string>
+    <string name="action_search">Пошук</string>
+    <string name="action_paste">Вставити</string>
+    <string name="action_refresh">Оновити</string>
+    <string name="action_play">Відтворити</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_remove">Видалити</string>
+    <string name="action_apply">Застосувати</string>
+    <string name="action_confirm">Підтвердити</string>
+    <string name="action_reset">Скинути</string>
+    <string name="common_unknown">Невідомо</string>
+    <string name="common_selected">Вибрано</string>
+
+    <!-- Media Station Card & YouTube -->
+    <string name="card_movies_tv">Фільми та Серіали</string>
+    <string name="card_youtube">YouTube</string>
+    <string name="youtube_topbar_title">YOUTUBE</string>
+
+    <!-- Movies Hub -->
+    <string name="movies_title_upper">ФІЛЬМИ ТА СЕРІАЛИ</string>
+    <string name="movies_episodes_upper">СЕРІЇ</string>
+    <string name="movies_voice_prompt">Пошук фільмів або серіалів</string>
+    <string name="movies_voice_unavailable">Голосовий пошук недоступний на цьому пристрої</string>
+    <string name="movies_voice_search">Голосовий пошук</string>
+    <string name="movies_search_placeholder">Пошук фільмів або серіалів...</string>
+    <string name="movies_search_hint">Введіть текст або скористайтеся мікрофоном</string>
+    <string name="movies_search_no_results">Немає результатів для «%1$s»</string>
+    <string name="movies_tab_resume">Продовжити</string>
+    <string name="movies_tab_movies">Фільми</string>
+    <string name="movies_tab_series">Серіали</string>
+    <string name="movies_continue_watching">Продовжити перегляд</string>
+    <string name="movies_section_movies">Фільми</string>
+    <string name="movies_section_series">Серіали</string>
+    <string name="movies_stremio_prompt">Введіть свій Stremio authKey, щоб бачити розпочаті фільми та серіали.</string>
+    <string name="movies_open_settings">Відкрити налаштування</string>
+    <string name="movies_nothing_to_resume">Немає відео для продовження</string>
+    <string name="movies_no_titles">Немає доступних відео</string>
+    <string name="movies_badge_movie">Фільм</string>
+    <string name="movies_badge_series">Серіал</string>
+    <string name="movies_settings_auth_label">Stremio authKey</string>
+    <string name="movies_settings_auth_placeholder">Вставте authKey акаунта Stremio</string>
+    <string name="movies_settings_addon_label">URL додатка (Addon Resolver)</string>
+    <string name="movies_settings_addon_placeholder">https://example-addon.org/manifest.json</string>
+    <string name="movies_settings_addon_hint">Кінцеві /manifest.json або / видаляються автоматично.</string>
+    <string name="movies_no_episodes">Немає доступних серій</string>
+    <string name="movies_season_number">Сезон %1$d</string>
+    <string name="movies_episode_fallback">Серія %1$d</string>
+    <string name="movies_resume_here">Продовжити звідси</string>
+
+    <!-- Media Player & Stream Resolution -->
+    <string name="player_resolving_streams">Пошук джерел...</string>
+    <string name="player_error_code">Код помилки: %1$s</string>
+    <string name="player_switching_source">%1$s — зміна джерела...</string>
+    <string name="player_audio_badge">Аудіо: %1$s</string>
+    <string name="player_select_audio">Вибрати аудіодоріжку</string>
+    <string name="player_source_counter">Джерело %1$d/%2$d</string>
+    <string name="player_select_source">Вибрати джерело (%1$d)</string>
+    <string name="player_source_fallback">Джерело %1$d</string>
+    <string name="player_track_label">Доріжка %1$d (%2$s)</string>
+    <string name="player_track_short">Доріжка %1$d</string>
+    <string name="player_active">Активна</string>
+    <string name="media_playing">Відтворення</string>
+    <string name="media_no_streams_found">Потоки в кеші не знайдено</string>
+    <string name="media_all_streams_failed">Не вдалося відтворити жодне з доступних джерел.</string>
+    <string name="media_error_addon_not_configured">URL додатка не налаштовано</string>
+    <string name="media_error_stremio_api">Помилка API Stremio</string>
+    <string name="media_error_empty_response">Порожня відповідь сервера</string>
+    <string name="media_error_search_failed">Помилка пошуку</string>
+    <string name="media_error_load_movies">Не вдалося завантажити фільми</string>
+    <string name="media_error_load_series">Не вдалося завантажити серіали</string>
+    <string name="media_error_stremio_sync">Помилка синхронізації Stremio</string>
+    <string name="media_error_load_episodes">Не вдалося завантажити серії</string>
+    <string name="media_error_resolve_streams">Помилка отримання джерел</string>
+    <string name="media_stream_http_fallback">HTTP-потік</string>
+
+    <!-- Music Widget & Music App Picker -->
+    <string name="music_title">Музика</string>
+    <string name="music_idle_subtitle">Нічого не відтворюється</string>
+    <string name="media_previous">Попередній</string>
+    <string name="media_next">Наступний</string>
+    <string name="music_picker_title">Виберіть музичний додаток</string>
+    <string name="music_picker_section_music">МУЗИЧНІ ДОДАТКИ</string>
+    <string name="music_picker_section_other">ІНШІ ДОДАТКИ</string>
+
+    <!-- Navigator & Navigation Engine -->
+    <string name="nav_search_content_desc">Пошук пункту призначення</string>
+    <string name="nav_search_placeholder">Введіть адресу або місце...</string>
+    <string name="nav_search_close">Закрити пошук</string>
+    <string name="nav_avoid_tolls">Без платних доріг</string>
+    <string name="nav_searching">Пошук...</string>
+    <string name="nav_start_navigation">Почати навігацію</string>
+    <string name="nav_preview_calculating">Розрахунок маршрутів...</string>
+    <string name="nav_preview_fastest">Найшвидший</string>
+    <string name="nav_preview_alternative">Альтернативний</string>
+    <string name="nav_preview_scenic">Мальовничий</string>
+    <string name="nav_preview_toll">Платно</string>
+    <string name="nav_preview_no_toll">Без оплат</string>
+    <string name="nav_preview_start_cta">ПОЧАТИ НАВІГАЦІЮ</string>
+    <string name="nav_preview_cancel">Скасувати</string>
+    <string name="nav_no_results">Нічого не знайдено</string>
+    <string name="nav_network_error">Помилка мережі</string>
+    <string name="nav_route_error">Не вдалося побудувати маршрут</string>
+    <string name="nav_recenter">Центр</string>
+    <string name="nav_compass_reset">Орієнтувати на північ</string>
+    <string name="nav_mute_voice">Вимкнути голосові підказки</string>
+    <string name="nav_unmute_voice">Увімкнути голосові підказки</string>
+    <string name="nav_end">Стоп</string>
+    <string name="nav_eta_format">Прибуття %1$s • %2$s</string>
+    <string name="nav_default_location">Позиція</string>
+    <string name="nav_default_destination">Пункт призначення</string>
+    <string name="nav_tts_recalculating">Перебудова маршруту</string>
+    <string name="nav_tts_in_300m">Через 300 метрів, %1$s</string>
+    <string name="nav_tts_in_50m">Через 50 метрів, %1$s</string>
+    <string name="nav_maneuver_arrive">Ви прибули до пункту призначення</string>
+    <string name="nav_maneuver_depart">Почніть рух за маршрутом</string>
+    <string name="nav_maneuver_depart_street">Рухайтесь по %1$s</string>
+    <string name="nav_maneuver_roundabout">На кільці поверніть на з\'їзд</string>
+    <string name="nav_maneuver_roundabout_street">На кільці поверніть на %1$s</string>
+    <string name="nav_maneuver_uturn">Виконайте розворот</string>
+    <string name="nav_maneuver_uturn_street">Виконайте розворот на %1$s</string>
+    <string name="nav_maneuver_sharp_left">Різко поверніть ліворуч</string>
+    <string name="nav_maneuver_sharp_left_street">Різко поверніть ліворуч на %1$s</string>
+    <string name="nav_maneuver_left">Поверніть ліворуч</string>
+    <string name="nav_maneuver_left_street">Поверніть ліворуч на %1$s</string>
+    <string name="nav_maneuver_slight_left">Тримайтеся лівіше</string>
+    <string name="nav_maneuver_slight_left_street">Тримайтеся лівіше на %1$s</string>
+    <string name="nav_maneuver_sharp_right">Різко поверніть праворуч</string>
+    <string name="nav_maneuver_sharp_right_street">Різко поверніть праворуч на %1$s</string>
+    <string name="nav_maneuver_right">Поверніть праворуч</string>
+    <string name="nav_maneuver_right_street">Поверніть праворуч на %1$s</string>
+    <string name="nav_maneuver_slight_right">Тримайтеся правіше</string>
+    <string name="nav_maneuver_slight_right_street">Тримайтеся правіше на %1$s</string>
+    <string name="nav_maneuver_continue">Продовжуйте рух прямо</string>
+    <string name="nav_maneuver_continue_street">Продовжуйте рух по %1$s</string>
+    <string name="nav_maneuver_proceed_to">Прямуйте в напрямку %1$s</string>
+
+    <!-- Sidebar / Dock & Cold Boot -->
+    <string name="sidebar_network">Мережа</string>
+    <string name="sidebar_gps">GPS</string>
+    <string name="sidebar_app_drawer">Додатки</string>
+    <string name="nav_settings">Налаштування</string>
+    <string name="cold_boot_dialog_title">Налаштування холодного старту</string>
+    <string name="cold_boot_auto_launch">Автозапуск при увімкненні</string>
+    <string name="cold_boot_auto_launch_desc">Автоматично запускати Puma Launcher при старті системи</string>
+    <string name="cold_boot_delay_dialog">Затримка запуску (очікування GPS та мережі)</string>
+    <string name="cold_boot_all_settings">Усі налаштування</string>
+    <string name="sidebar_pin">Закріпити</string>
+    <string name="sidebar_unpin">Відкріпити</string>
+    <string name="sidebar_replace_app">Замінити додаток</string>
+    <string name="sidebar_decrease">Зменшити</string>
+    <string name="sidebar_increase">Збільшити</string>
+
+    <!-- App Drawer -->
+    <string name="drawer_choose_app">Виберіть додаток...</string>
+    <string name="drawer_search_apps">Пошук серед %1$d додатків...</string>
+    <string name="drawer_no_apps">Додатки не знайдено</string>
+    <string name="drawer_hidden_suffix">%1$s (приховано)</string>
+    <string name="drawer_pin_rail">Закріпити на панелі</string>
+    <string name="drawer_unpin_rail">Прибрати з панелі</string>
+    <string name="drawer_hide_app">Приховати додаток</string>
+    <string name="drawer_unhide_app">Показати додаток</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title_upper">НАЛАШТУВАННЯ</string>
+    <string name="settings_section_language">Мова</string>
+    <string name="settings_language_label">Мова лаунчера</string>
+    <string name="settings_language_desc">Застосовується до всього інтерфейсу та пріоритету аудіодоріжок</string>
+
+    <string name="settings_section_theme_color">Колір теми</string>
+    <string name="theme_preset_blue">Синій Performance</string>
+    <string name="theme_preset_cyan">Крижаний ціан</string>
+    <string name="theme_preset_green">Смарагдовий</string>
+    <string name="theme_preset_amber">Бурштиновий Mini AA</string>
+    <string name="theme_preset_red">Гоночний червоний</string>
+    <string name="theme_preset_white">Титановий білий</string>
+
+    <string name="settings_section_app_drawer">Меню додатків</string>
+    <string name="settings_show_hidden_apps">Показувати приховані додатки</string>
+    <string name="settings_hidden_none">Немає прихованих додатків (утримуйте іконку в меню, щоб приховати)</string>
+    <string name="settings_hidden_count">Приховано додатків: %1$d — увімкніть для відображення</string>
+    <string name="settings_restore_hidden">Відновити всі приховані додатки (%1$d)</string>
+
+    <string name="settings_section_permissions">Дозволи</string>
+    <string name="settings_default_launcher">Встановити лаунчером за замовчуванням</string>
+    <string name="settings_default_launcher_active">Активно — Puma Launcher є головним екраном</string>
+    <string name="settings_default_launcher_inactive">Необхідно для автоматичного запуску при старті авто</string>
+    <string name="settings_notification_access">Доступ до сповіщень</string>
+    <string name="settings_notification_granted">Надано — керування медіа активне</string>
+    <string name="settings_notification_required">Необхідно для роботи музичного віджета</string>
+    <string name="settings_location_access">Доступ до геопозиції</string>
+    <string name="settings_location_granted">Надано — GPS-навігація активна</string>
+    <string name="settings_location_required">Необхідно для GPS-навігації</string>
+
+    <string name="settings_section_vehicle">Автомобіль</string>
+    <string name="settings_vehicle_name">Назва автомобіля</string>
+    <string name="settings_vehicle_placeholder">МОЄ АВТО</string>
+
+    <string name="settings_section_nav_rail">Бічна панель</string>
+    <string name="settings_no_pinned">Немає закріплених додатків</string>
+    <string name="settings_no_pinned_desc">Утримуйте додаток у меню або на панелі, щоб закріпити</string>
+    <string name="settings_pinned_slot">Закріплено %1$d</string>
+
+    <string name="settings_section_autostart">Автозапуск</string>
+    <string name="settings_startup_delay">Затримка запуску</string>
+    <string name="settings_startup_delay_desc">Очікування сигналу GPS та мережі перед стартом</string>
+
+    <string name="settings_section_appearance">Зовнішній вигляд</string>
+    <string name="settings_display_mode">Режим екрана</string>
+    <string name="settings_mode_dark_desc">Завжди темний</string>
+    <string name="settings_mode_light_desc">Завжди світлий</string>
+    <string name="settings_mode_auto_desc">За сходом і заходом сонця</string>
+    <string name="settings_mode_system_desc">За системною темою</string>
+    <string name="settings_mode_dark">Темний</string>
+    <string name="settings_mode_light">Світлий</string>
+    <string name="settings_mode_sunset">Авто</string>
+    <string name="settings_mode_system">Система</string>
+
+    <string name="settings_background">Фон</string>
+    <string name="settings_bg_gradient">Градієнт</string>
+    <string name="settings_bg_solid">Суцільний колір</string>
+    <string name="settings_default_upper">СКИНУТИ</string>
+    <string name="settings_font_color">Колір тексту</string>
+    <string name="settings_font_color_desc">Власний колір шрифту для активної теми</string>
+    <string name="settings_use_gradient">Використовувати градієнт</string>
+    <string name="settings_use_gradient_desc">Плавний перехід між двома кольорами фону</string>
+    <string name="settings_gradient_direction">Напрямок градієнта</string>
+    <string name="settings_grad_top_bottom_desc">Згори донизу</string>
+    <string name="settings_grad_left_right_desc">Зліва направо</string>
+    <string name="settings_grad_diagonal_desc">По діагоналі (лінійний)</string>
+    <string name="settings_grad_radial_desc">Радіальний (круговий)</string>
+    <string name="settings_grad_vertical">Вертикально</string>
+    <string name="settings_grad_horizontal">Горизонтально</string>
+    <string name="settings_grad_diagonal">Діагональ</string>
+    <string name="settings_grad_radial">Радіально</string>
+    <string name="settings_set_wallpaper">Встановити шпалери</string>
+    <string name="settings_wallpaper_active">Власні шпалери активні</string>
+    <string name="settings_wallpaper_choose">Вибрати зображення з галереї</string>
+    <string name="settings_wallpaper_dim">Затемнення шпалер</string>
+    <string name="settings_remove_wallpaper">ВИДАЛИТИ ШПАЛЕРИ</string>
+
+    <string name="settings_section_typography">Типографіка</string>
+    <string name="settings_font">Шрифт</string>
+    <string name="settings_font_system">Системний</string>
+    <string name="settings_bold_font">Жирний шрифт</string>
+    <string name="settings_bold_font_desc">Збільшена товщина всіх написів</string>
+    <string name="settings_text_scale">Розмір тексту</string>
+    <string name="settings_ui_scale">Масштаб інтерфейсу</string>
+    <string name="settings_ui_scale_desc">%1$d%% — масштабує всі елементи</string>
+
+    <string name="settings_section_gps">GPS та Калібрування</string>
+    <string name="settings_reset_agps">Скинути дані A-GPS</string>
+    <string name="settings_reset_agps_desc">Примусовий холодний старт для оновлення орбіт супутників</string>
+    <string name="settings_agps_clearing">Очищення кешу A-GPS...</string>
+    <string name="settings_agps_success">Холодний старт виконано — виїжджайте на відкрите місце (2–3 хв)</string>
+    <string name="settings_agps_unsupported">Не підтримується GPS-драйвером пристрою — дані не очищено</string>
+
+    <string name="settings_section_maintenance">Обслуговування</string>
+    <string name="settings_reset_defaults">Скинути до стандартних налаштувань</string>
+    <string name="settings_reset_dialog_title">Скидання налаштувань</string>
+    <string name="settings_reset_dialog_message">Ви впевнені, що хочете скинути всі налаштування до стандартних? Цю дію неможливо скасувати.</string>
+    <string name="settings_dialog_accent_color">Колір акценту</string>
+    <string name="settings_dialog_bg_color">Колір фону</string>
+    <string name="settings_dialog_gradient_end">Кінцевий колір градієнта</string>
+    <string name="settings_dialog_font_color">Колір тексту</string>
+
+    <!-- Color Picker -->
+    <string name="color_picker_presets">Шаблони</string>
+    <string name="color_picker_custom">Власний</string>
+    <string name="color_picker_hue">Відтінок</string>
+    <string name="color_picker_saturation">Насиченість</string>
+    <string name="color_picker_brightness">Яскравість</string>
+
+    <!-- Onboarding Screen -->
+    <string name="onboarding_subtitle">Створений для панелі приладів</string>
+    <string name="onboarding_step_intro">Вступ</string>
+    <string name="onboarding_step_location">Геопозиція</string>
+    <string name="onboarding_step_media">Мультимедіа</string>
+    <string name="onboarding_step_ready">Готово</string>
+    <string name="onboarding_back">НАЗАД</string>
+    <string name="onboarding_get_started">РОЗПОЧАТИ</string>
+    <string name="onboarding_continue">ДАЛІ</string>
+    <string name="onboarding_skip">ПРОПУСТИТИ</string>
+    <string name="onboarding_finish">ЗАВЕРШИТИ</string>
+    <string name="onboarding_intro_title">ЛАСКАВО ПРОСИМО ДО PUMA LAUNCHER</string>
+    <string name="onboarding_intro_desc">Сучасна горизонтальна панель керування, створена спеціально для екрана вашого автомобіля.</string>
+    <string name="onboarding_bullet_nav_title">Покрокова навігація</string>
+    <string name="onboarding_bullet_nav_desc">Вбудована навігація MapLibre з голосовими підказками, вибором маршрутів та об\'їздом платних доріг.</string>
+    <string name="onboarding_bullet_dash_title">Персоналізований автомобільний кокпіт</string>
+    <string name="onboarding_bullet_dash_desc">Налаштовуйте акцентні кольори, шпалери, градієнти та шрифти під дисплей вашого авто.</string>
+    <string name="onboarding_bullet_media_title">Музика та Розваги</string>
+    <string name="onboarding_bullet_media_desc">Керуйте будь-яким музичним плеєром прямо з екрана та дивіться Фільми, Серіали і YouTube.</string>
+    <string name="onboarding_location_title">НАВІГАЦІЯ ТА ГЕОПОЗИЦІЯ</string>
+    <string name="onboarding_location_desc">Для роботи покрокової навігації та відображення реальної швидкості за GPS додатку Puma Launcher потрібен доступ до геопозиції.</string>
+    <string name="onboarding_perm_granted">Дозвіл надано</string>
+    <string name="onboarding_perm_required">Потрібен дозвіл</string>
+    <string name="onboarding_location_active">GPS-навігація активна та готова до роботи.</string>
+    <string name="onboarding_location_disabled">Доступ до геопозиції наразі вимкнено.</string>
+    <string name="onboarding_grant_access">НАДАТИ ДОСТУП</string>
+    <string name="onboarding_media_title">ІНТЕГРАЦІЯ МУЛЬТИМЕДІА</string>
+    <string name="onboarding_media_desc">Щоб відображати обкладинки альбомів, назви треків і кнопки керування плеєром, Puma Launcher відстежує активні медіасесії.</string>
+    <string name="onboarding_media_granted">Доступ до сповіщень надано</string>
+    <string name="onboarding_media_required">Потрібен доступ до сповіщень</string>
+    <string name="onboarding_media_active">Музичний віджет підключено.</string>
+    <string name="onboarding_media_disabled">Музичний віджет залишатиметься неактивним до надання доступу.</string>
+    <string name="onboarding_enable_media">УВІМКНУТИ ДОСТУП ДО МЕДІА</string>
+    <string name="onboarding_ready_title">ГОТОВІ ДО ДОРОГИ!</string>
+    <string name="onboarding_ready_desc">Усе налаштовано. Ви можете встановити Puma Launcher головним екраном за замовчуванням, щоб він запускався автоматично під час старту авто.</string>
+    <string name="onboarding_set_default">ЗРОБИТИ ЗА ЗАМОВЧУВАННЯМ</string>
+    <string name="youtube_loading_stream">Завантаження відео...</string>
+    <string name="youtube_video_unplayable">Відео неможливо відтворити</string>
+    <string name="youtube_back_to_youtube">Назад до YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Погода</string>
+    <string name="weather_clear">Ясно</string>
+    <string name="weather_partly_cloudy">Мінлива хмарність</string>
+    <string name="weather_cloudy">Хмарно</string>
+    <string name="weather_fog">Туман</string>
+    <string name="weather_rain">Дощ</string>
+    <string name="weather_thunderstorm">Гроза</string>
+    <string name="weather_snow">Сніг</string>
+    <string name="weather_feels_like">Відчувається як %1$d°</string>
+    <string name="weather_wind_kmh">%1$d км/год</string>
+    <string name="weather_loading">Оновлення погоди...</string>
+    <string name="weather_tap_refresh">Торкніться, щоб оновити</string>
+    <string name="weather_return_music">Музика</string>
+    <string name="weather_return_media">Медіа</string>
+    <string name="weather_return_music_desc">Повернутися до музичного плеєра</string>
+    <string name="weather_return_media_desc">Повернутися до медіацентру</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Тайм-аут паузи медіа</string>
+    <string name="settings_media_pause_timeout_desc">Зберігати відео на паузі та погоду активними до скидання</string>
+    <string name="settings_minutes_value">%1$d хв</string>
+</resources>

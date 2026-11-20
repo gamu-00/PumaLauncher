@@ -635,7 +635,8 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
         }
 
         youTubeExtractJob = viewModelScope.launch {
-            val result = youTubeExtractor.extract720pStream(cleanUrl)
+            val preferredLang = AppLanguageManager.getSavedLanguage(getApplication())
+            val result = youTubeExtractor.extract720pStream(cleanUrl, preferredLang)
             result.onSuccess { stream ->
                 _youTubeState.update {
                     it.copy(

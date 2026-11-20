@@ -13,15 +13,18 @@ import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
+import org.schabi.newpipe.extractor.localization.ContentCountry
+import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.VideoStream
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import okhttp3.Request as OkHttpRequest
 
 /**
  * Ad-free direct YouTube stream extractor capped at 720p using NewPipeExtractor.
- * Filters exclusively muxed audio+video streams (<= 720p), prioritizing 720p (MP4), then 480p, then 360p.
+ * Prioritizes audio tracks matching the active app language (`en`, `de`, `it`, `fr`, `es`, `pt`, `pl`, `ru`, `uk`).
  */
 class YouTubeStreamExtractor(
     okHttpClient: OkHttpClient
@@ -31,51 +34,65 @@ class YouTubeStreamExtractor(
         ensureInitialized(okHttpClient)
     }
 
-    suspend fun extract720pStream(youtubeUrl: String): Result<PlayableStream> = withContext(Dispatchers.IO) {
+    suspend fun extract720pStream(
+        youtubeUrl: String,
+        preferredLangCode: String = "en"
+    ): Result<PlayableStream> = withContext(Dispatchers.IO) {
         runCatching {
             val cleanUrl = youtubeUrl.trim()
             require(cleanUrl.isNotEmpty()) { "Empty YouTube URL" }
+
+            applyExtractorLocalization(preferredLangCode)
 
             val info = StreamInfo.getInfo(ServiceList.YouTube, cleanUrl)
             val videoTitle = info.name?.trim()?.takeIf { it.isNotEmpty() } ?: "YouTube"
 
             val muxed = info.videoStreams.orEmpty().mapNotNull { rank(it) }
             val dashVideo = info.videoOnlyStreams.orEmpty().mapNotNull { rank(it) }
+            val availableAudios = info.audioStreams.orEmpty()
+                .filter { s -> s.content?.trim()?.startsWith("http", ignoreCase = true) == true }
 
-            // 1) Muxed 720p (prefer mp4)
+            val sortedAudios = availableAudios.sortedWith(
+                compareBy<AudioStream> { audioLanguagePriority(it, preferredLangCode) }
+                    .thenBy {
+                        val f = it.format
+                        val isM4a = f == MediaFormat.M4A ||
+                            f?.suffix.equals("m4a", ignoreCase = true) ||
+                            it.codec?.contains("mp4a", ignoreCase = true) == true
+                        if (isM4a) 0 else 1
+                    }
+                    .thenByDescending { it.averageBitrate }
+            )
+            val bestAudioStream = sortedAudios.firstOrNull()
+            val hasPreferredDubbedAudio = bestAudioStream != null &&
+                availableAudios.size > 1 &&
+                audioLanguagePriority(bestAudioStream, preferredLangCode) == 0
+
+            // 1) Muxed 720p (prefer mp4) unless a multi-audio DASH track matches the user's preferred language
             val muxed720 = muxed.filter { it.height == 720 }
                 .sortedBy { it.formatPriority }.firstOrNull()
 
             var audio: String? = null
-            val best: RankedYouTubeStream = muxed720 ?: run {
-                // 2) DASH video-only <= 720p (720p mp4/avc1 first, then 480p) + best audio
+            val best: RankedYouTubeStream = if (muxed720 != null && !hasPreferredDubbedAudio) {
+                muxed720
+            } else {
+                // 2) DASH video-only <= 720p (720p mp4/avc1 first, then 480p) + preferred language audio
                 val dash = dashVideo.sortedWith(
                     compareBy<RankedYouTubeStream> { it.resolutionPriority }
                         .thenBy { it.formatPriority }
                         .thenByDescending { it.height }
                 ).firstOrNull()
-                val audioStream = info.audioStreams.orEmpty()
-                    .filter { s -> s.content?.trim()?.startsWith("http", ignoreCase = true) == true }
-                    .sortedWith(
-                        compareBy<AudioStream> {
-                            val f = it.format
-                            val isM4a = f == MediaFormat.M4A ||
-                                f?.suffix.equals("m4a", ignoreCase = true) ||
-                                it.codec?.contains("mp4a", ignoreCase = true) == true
-                            if (isM4a) 0 else 1
-                        }.thenByDescending { it.averageBitrate }
-                    ).firstOrNull()
-                if (dash != null && audioStream != null && dash.height >= 480) {
-                    audio = audioStream.content.trim()
+                if (dash != null && bestAudioStream != null && dash.height >= 480) {
+                    audio = bestAudioStream.content.trim()
                     dash
                 } else {
-                    // 3) Fallback muxed 480p / 360p (or best muxed <= 720p)
-                    muxed.sortedWith(
+                    // 3) Fallback muxed 720p / 480p / 360p (or best muxed <= 720p)
+                    muxed720 ?: muxed.sortedWith(
                         compareBy<RankedYouTubeStream> { it.resolutionPriority }
                             .thenBy { it.formatPriority }
                             .thenByDescending { it.height }
                     ).firstOrNull()
-                        ?: dash?.takeIf { audioStream != null }?.also { audio = audioStream!!.content.trim() }
+                        ?: dash?.takeIf { bestAudioStream != null }?.also { audio = bestAudioStream!!.content.trim() }
                         ?: throw IllegalStateException("Nessuno stream <= 720p disponibile per $cleanUrl")
                 }
             }
@@ -84,7 +101,7 @@ class YouTubeStreamExtractor(
 
             Log.d(
                 TAG,
-                "Extracted YouTube stream [$qualityBadge${if (audio != null) " DASH" else ""}] for '$videoTitle': ${best.url.take(96)}..."
+                "Extracted YouTube stream [$qualityBadge${if (audio != null) " DASH" else ""}, lang=$preferredLangCode] for '$videoTitle': ${best.url.take(96)}..."
             )
 
             PlayableStream(
@@ -102,6 +119,47 @@ class YouTubeStreamExtractor(
         }
     }
 
+
+    private fun applyExtractorLocalization(preferredLangCode: String) {
+        val (lang, country) = when (preferredLangCode.lowercase(Locale.ROOT)) {
+            "it" -> "it" to "IT"
+            "de" -> "de" to "DE"
+            "fr" -> "fr" to "FR"
+            "es" -> "es" to "ES"
+            "pt" -> "pt" to "PT"
+            "pl" -> "pl" to "PL"
+            "ru" -> "ru" to "RU"
+            "uk" -> "uk" to "UA"
+            else -> "en" to "US"
+        }
+        runCatching {
+            NewPipe.setupLocalization(Localization(lang, country), ContentCountry(country))
+        }
+    }
+
+    private fun audioLanguagePriority(stream: AudioStream, preferredLangCode: String): Int {
+        val target = preferredLangCode.lowercase(Locale.ROOT)
+        val localeLang = stream.audioLocale?.language?.lowercase(Locale.ROOT).orEmpty()
+        val trackId = stream.audioTrackId?.lowercase(Locale.ROOT).orEmpty()
+        val trackName = stream.audioTrackName?.lowercase(Locale.ROOT).orEmpty()
+        val combined = "$localeLang $trackId $trackName"
+
+        val matchesPreferred = when (target) {
+            "it" -> localeLang.startsWith("it") || trackId.startsWith("it") || "ital" in combined
+            "de" -> localeLang.startsWith("de") || trackId.startsWith("de") || "deutsch" in combined || "german" in combined
+            "fr" -> localeLang.startsWith("fr") || trackId.startsWith("fr") || "fran" in combined || "french" in combined
+            "es" -> localeLang.startsWith("es") || trackId.startsWith("es") || "espa" in combined || "spanish" in combined
+            "pt" -> localeLang.startsWith("pt") || trackId.startsWith("pt") || "portug" in combined
+            "pl" -> localeLang.startsWith("pl") || trackId.startsWith("pl") || "polsk" in combined || "polish" in combined
+            "ru" -> localeLang.startsWith("ru") || trackId.startsWith("ru") || "рус" in combined || "russian" in combined
+            "uk" -> localeLang.startsWith("uk") || localeLang.startsWith("ua") || trackId.startsWith("uk") || "укр" in combined || "ukrain" in combined
+            else -> localeLang.startsWith("en") || trackId.startsWith("en") || "english" in combined
+        }
+        if (matchesPreferred) return 0
+        if (localeLang.isEmpty() && trackId.isEmpty() && trackName.isEmpty()) return 1
+        if ("original" in combined) return 1
+        return 2
+    }
 
     private fun rank(stream: VideoStream): RankedYouTubeStream? {
         val directUrl = stream.content?.trim()?.takeIf {
