@@ -1125,7 +1125,7 @@ fun NativeNavigatorPanel(
                     }
                 }
 
-                // 5. Route Preview Card (BottomCenter, optimized for 8" landscape)
+                // 5. Route Preview Card (BottomCenter, optimized for 8" landscape split-screen)
                 if (isRoutePreview) {
                     RoutePreviewCard(
                         destination = engine.previewDestination,
@@ -1136,6 +1136,7 @@ fun NativeNavigatorPanel(
                         accent = accent,
                         onAccent = onAccent,
                         compact = tightOverlay,
+                        availableWidth = (mapPanelWidth - overlayPad * 2).coerceAtLeast(240.dp),
                         onSelectOption = { idx -> engine.selectPreviewOption(idx) },
                         onStartNavigation = {
                             engine.startPreviewRoute()
@@ -1152,7 +1153,7 @@ fun NativeNavigatorPanel(
                         },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .widthIn(max = 640.dp)
+                            .widthIn(max = 520.dp)
                             .fillMaxWidth()
                             .padding(overlayPad)
                             .onSizeChanged { previewCardHeightPx = it.height }
@@ -1176,27 +1177,33 @@ private fun RoutePreviewCard(
     accent: Color,
     onAccent: Color,
     compact: Boolean,
+    availableWidth: Dp = 440.dp,
     onSelectOption: (Int) -> Unit,
     onStartNavigation: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalCockpitColors.current
-    val cardShape = RoundedCornerShape(18.dp)
+    val cardShape = RoundedCornerShape(16.dp)
     val fastestTimeSec = options.firstOrNull()?.route?.totalTimeSec ?: 0.0
+    val tightSplit = compact || availableWidth < 430.dp
+    val ultraTightSplit = availableWidth < 365.dp
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        verticalArrangement = Arrangement.spacedBy(if (tightSplit) 5.dp else 7.dp),
         modifier = modifier
             .clip(cardShape)
             .background(colors.glassPillSurface)
             .border(1.dp, colors.hairlineBorder, cardShape)
-            .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = if (compact) 8.dp else 10.dp)
+            .padding(
+                horizontal = if (tightSplit) 8.dp else 12.dp,
+                vertical = if (tightSplit) 7.dp else 9.dp
+            )
     ) {
         // Header: Destination + Close (X)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
@@ -1208,16 +1215,17 @@ private fun RoutePreviewCard(
             Text(
                 text = destination?.name ?: stringResource(R.string.nav_default_destination),
                 color = colors.textPrimary,
-                fontSize = if (compact) 13.sp else 14.sp,
+                fontSize = if (tightSplit) 12.sp else 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
                     .background(colors.textSecondary.copy(alpha = 0.14f))
                     .clickable(onClick = onCancel)
@@ -1226,7 +1234,7 @@ private fun RoutePreviewCard(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.nav_preview_cancel),
                     tint = colors.textPrimary,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
             }
         }
@@ -1249,7 +1257,9 @@ private fun RoutePreviewCard(
                         text = stringResource(R.string.nav_preview_calculating),
                         color = colors.textPrimary,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -1279,14 +1289,14 @@ private fun RoutePreviewCard(
             }
 
             options.isNotEmpty() -> {
-                // 3 selectable route tabs
+                // 3 selectable route tabs sized to fit inside the split-screen map panel without truncation
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (tightSplit) 5.dp else 7.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     options.forEachIndexed { idx, option ->
                         val isSelected = idx == selectedIndex
-                        val optionShape = RoundedCornerShape(12.dp)
+                        val optionShape = RoundedCornerShape(11.dp)
                         val title = when (option.type) {
                             RouteOptionType.FASTEST -> stringResource(R.string.nav_preview_fastest)
                             RouteOptionType.ALTERNATIVE -> stringResource(R.string.nav_preview_alternative)
@@ -1304,68 +1314,78 @@ private fun RoutePreviewCard(
                         }
                         val distanceLabel = formatPreviewDistance(option.route.totalLengthKm)
                         val borderColor = if (isSelected) accent else colors.hairlineBorder
-                        val borderWidth = if (isSelected) 2.dp else 1.dp
+                        val borderWidth = if (isSelected) 1.75.dp else 1.dp
                         val bg = if (isSelected) accent.copy(alpha = 0.16f) else colors.cardSurface.copy(alpha = 0.55f)
 
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(optionShape)
                                 .background(bg)
                                 .border(borderWidth, borderColor, optionShape)
                                 .clickable { onSelectOption(idx) }
-                                .padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 6.dp else 8.dp)
+                                .padding(
+                                    horizontal = if (tightSplit) 6.dp else 8.dp,
+                                    vertical = if (tightSplit) 5.dp else 6.dp
+                                )
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
                                     tint = if (isSelected) accent else colors.textSecondary,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(if (tightSplit) 12.dp else 13.dp)
                                 )
                                 Text(
                                     text = title,
                                     color = if (isSelected) accent else colors.textSecondary,
-                                    fontSize = 11.sp,
+                                    fontSize = if (ultraTightSplit) 9.5.sp else if (tightSplit) 10.sp else 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
+                                    softWrap = false,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Text(
                                 text = primaryTimeLabel,
                                 color = colors.textPrimary,
-                                fontSize = if (compact) 14.sp else 15.sp,
+                                fontSize = if (tightSplit) 13.sp else 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = distanceLabel,
                                     color = colors.textSecondary,
-                                    fontSize = 11.sp,
+                                    fontSize = if (tightSplit) 10.sp else 11.sp,
                                     fontWeight = FontWeight.Medium,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                                 if (option.hasTolls) {
                                     Text(
-                                        text = stringResource(R.string.nav_preview_toll),
+                                        text = if (ultraTightSplit) "€" else stringResource(R.string.nav_preview_toll),
                                         color = colors.textSecondary,
-                                        fontSize = 10.sp,
+                                        fontSize = if (tightSplit) 8.5.sp else 9.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))
                                             .background(colors.textSecondary.copy(alpha = 0.14f))
-                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                            .padding(horizontal = 3.dp, vertical = 1.dp)
                                     )
                                 }
                             }
@@ -1375,12 +1395,12 @@ private fun RoutePreviewCard(
 
                 // Action Row: Cancel + Big START NAVIGATION button
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (tightSplit) 6.dp else 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val btnHeight = if (compact) 38.dp else 44.dp
-                    val btnShape = RoundedCornerShape(12.dp)
+                    val btnHeight = if (tightSplit) 36.dp else 40.dp
+                    val btnShape = RoundedCornerShape(11.dp)
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -1389,13 +1409,15 @@ private fun RoutePreviewCard(
                             .background(colors.cardSurface.copy(alpha = 0.7f))
                             .border(1.dp, colors.hairlineBorder, btnShape)
                             .clickable(onClick = onCancel)
-                            .padding(horizontal = 14.dp)
+                            .padding(horizontal = if (tightSplit) 10.dp else 14.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.nav_preview_cancel),
                             color = colors.textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = if (tightSplit) 12.sp else 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
@@ -1408,21 +1430,22 @@ private fun RoutePreviewCard(
                             .clip(btnShape)
                             .background(accent)
                             .clickable(onClick = onStartNavigation)
-                            .padding(horizontal = 14.dp)
+                            .padding(horizontal = if (tightSplit) 10.dp else 14.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Navigation,
                             contentDescription = null,
                             tint = onAccent,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(if (tightSplit) 16.dp else 18.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = stringResource(R.string.nav_preview_start_cta),
                             color = onAccent,
-                            fontSize = 13.sp,
+                            fontSize = if (tightSplit) 12.sp else 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
                     }

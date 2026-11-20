@@ -25,7 +25,7 @@ android {
     }
 
     base {
-        archivesName.set("PumaNavLab-v${defaultConfig.versionName}")
+        archivesName.set("PumaLauncher-v${defaultConfig.versionName}")
     }
 
     signingConfigs {
@@ -43,7 +43,6 @@ android {
 
     buildTypes {
         release {
-            applicationIdSuffix = ".navlab"
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true

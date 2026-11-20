@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App & Manifest -->
-    <string name="app_name">PumaNav Lab</string>
+    <string name="app_name">PumaLauncher</string>
     <string name="media_label">Puma Launcher Media</string>
 
     <!-- Common Actions -->
