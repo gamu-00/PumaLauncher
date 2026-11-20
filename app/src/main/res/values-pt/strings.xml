@@ -105,6 +105,7 @@
     <string name="nav_network_error">Erro de rede</string>
     <string name="nav_route_error">Não foi possível calcular a rota</string>
     <string name="nav_recenter">Centralizar</string>
+    <string name="nav_compass_reset">Orientar para o norte</string>
     <string name="nav_mute_voice">Silenciar orientação por voz</string>
     <string name="nav_unmute_voice">Ativar orientação por voz</string>
     <string name="nav_end">Encerrar</string>
@@ -312,4 +313,28 @@
     <string name="youtube_loading_stream">Carregando vídeo...</string>
     <string name="youtube_video_unplayable">Vídeo não reproduzível</string>
     <string name="youtube_back_to_youtube">Voltar ao YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Clima</string>
+    <string name="weather_clear">Limpo</string>
+    <string name="weather_partly_cloudy">Parcialmente nublado</string>
+    <string name="weather_cloudy">Nublado</string>
+    <string name="weather_fog">Nevoeiro</string>
+    <string name="weather_rain">Chuva</string>
+    <string name="weather_thunderstorm">Tempestade</string>
+    <string name="weather_snow">Neve</string>
+    <string name="weather_feels_like">Sensação %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Atualizando clima...</string>
+    <string name="weather_tap_refresh">Toque para atualizar</string>
+    <string name="weather_return_music">Música</string>
+    <string name="weather_return_media">Mídia</string>
+    <string name="weather_return_music_desc">Voltar ao player de música</string>
+    <string name="weather_return_media_desc">Voltar ao hub de vídeo</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Tempo limite de pausa</string>
+    <string name="settings_media_pause_timeout_desc">Manter vídeo pausado e clima ativos antes de redefinir</string>
+    <string name="settings_minutes_value">%1$d min</string>
 </resources>

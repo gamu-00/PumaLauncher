@@ -12,6 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,31 +30,52 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.R
+import com.openlauncher.app.data.DEFAULT_MEDIA_PAUSE_TIMEOUT_MINUTES
+import com.openlauncher.app.data.WeatherData
 import com.openlauncher.app.mediastation.ui.MediaStationViewModel
 import com.openlauncher.app.mediastation.ui.MoviesHubView
 import com.openlauncher.app.ui.components.CockpitCardShape
+import com.openlauncher.app.ui.components.CockpitWeatherCard
 import com.openlauncher.app.ui.theme.LocalCockpitColors
 
 /** Top-level states of the Media Station card. */
 enum class MediaStationState { IDLE, MOVIES, YOUTUBE }
 
+private enum class MediaStationDisplayMode { IDLE, WEATHER, MOVIES, YOUTUBE }
+
 private val CardShape = CockpitCardShape
 
 /**
- * Top-right "Media Station" card. IDLE shows a split Movies | YouTube chooser; each half
- * cross-fades into its sub-view within the same rounded perimeter.
+ * Top-right "Media Station" card. IDLE shows a split Movies | YouTube chooser (or contextual
+ * live weather when triggered by sustained audio playback); each sub-view cross-fades within
+ * the same rounded perimeter.
  */
 @Composable
 fun MediaStationCard(
     state: MediaStationState,
     onStateChange: (MediaStationState) -> Unit,
     mediaStationViewModel: MediaStationViewModel,
+    showWeather: Boolean = false,
+    weather: WeatherData? = null,
+    isWeatherLoading: Boolean = false,
+    accent: Color = Color(0xFF2979FF),
+    onRefreshWeather: () -> Unit = {},
+    onDismissWeather: () -> Unit = {},
+    mediaPauseTimeoutMinutes: Int = DEFAULT_MEDIA_PAUSE_TIMEOUT_MINUTES,
+    onMediaPauseTimeoutChange: (Int) -> Unit = {},
     isCompactHeight: Boolean = false,
     isHomeVisible: Boolean = true,
     cardShape: RoundedCornerShape = CardShape,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalCockpitColors.current
+    val displayMode = when {
+        state == MediaStationState.MOVIES -> MediaStationDisplayMode.MOVIES
+        state == MediaStationState.YOUTUBE -> MediaStationDisplayMode.YOUTUBE
+        showWeather -> MediaStationDisplayMode.WEATHER
+        else -> MediaStationDisplayMode.IDLE
+    }
+
     Box(
         modifier = modifier
             .clip(cardShape)
@@ -60,19 +83,33 @@ fun MediaStationCard(
             .border(1.dp, colors.cardBorderBrush, cardShape)
     ) {
         AnimatedContent(
-            targetState = state,
-            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+            targetState = displayMode,
+            transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(200)) },
             label = "mediaStation",
             modifier = Modifier.fillMaxSize()
         ) { target ->
             when (target) {
-                MediaStationState.IDLE -> IdleSplit(
+                MediaStationDisplayMode.IDLE -> IdleSplit(
                     isCompactHeight = isCompactHeight,
                     onMovies = { onStateChange(MediaStationState.MOVIES) },
                     onYouTube = { onStateChange(MediaStationState.YOUTUBE) }
                 )
-                MediaStationState.MOVIES -> MoviesHubView(
+                MediaStationDisplayMode.WEATHER -> CockpitWeatherCard(
+                    weather = weather,
+                    isLoading = isWeatherLoading,
+                    accent = accent,
+                    returnIcon = Icons.Default.VideoLibrary,
+                    returnLabel = stringResource(R.string.weather_return_media),
+                    returnContentDescription = stringResource(R.string.weather_return_media_desc),
+                    onReturnClick = onDismissWeather,
+                    onRefreshClick = onRefreshWeather,
+                    isCompactHeight = isCompactHeight,
+                    modifier = Modifier.fillMaxSize()
+                )
+                MediaStationDisplayMode.MOVIES -> MoviesHubView(
                     viewModel = mediaStationViewModel,
+                    mediaPauseTimeoutMinutes = mediaPauseTimeoutMinutes,
+                    onMediaPauseTimeoutChange = onMediaPauseTimeoutChange,
                     isCompactHeight = isCompactHeight,
                     isHomeVisible = isHomeVisible,
                     onClose = {
@@ -80,7 +117,7 @@ fun MediaStationCard(
                         onStateChange(MediaStationState.IDLE)
                     }
                 )
-                MediaStationState.YOUTUBE -> YouTubeView(
+                MediaStationDisplayMode.YOUTUBE -> YouTubeView(
                     viewModel = mediaStationViewModel,
                     isCompactHeight = isCompactHeight,
                     isHomeVisible = isHomeVisible,

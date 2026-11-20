@@ -105,6 +105,7 @@
     <string name="nav_network_error">Netzwerkfehler</string>
     <string name="nav_route_error">Route konnte nicht berechnet werden</string>
     <string name="nav_recenter">Zentrieren</string>
+    <string name="nav_compass_reset">Nach Norden ausrichten</string>
     <string name="nav_mute_voice">Sprachführung stummschalten</string>
     <string name="nav_unmute_voice">Sprachführung aktivieren</string>
     <string name="nav_end">Beenden</string>
@@ -312,4 +313,28 @@
     <string name="youtube_loading_stream">Video wird geladen...</string>
     <string name="youtube_video_unplayable">Video nicht abspielbar</string>
     <string name="youtube_back_to_youtube">Zurück zu YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Wetter</string>
+    <string name="weather_clear">Klar</string>
+    <string name="weather_partly_cloudy">Teilweise bewölkt</string>
+    <string name="weather_cloudy">Bewölkt</string>
+    <string name="weather_fog">Nebel</string>
+    <string name="weather_rain">Regen</string>
+    <string name="weather_thunderstorm">Gewitter</string>
+    <string name="weather_snow">Schnee</string>
+    <string name="weather_feels_like">Gefühlt %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Wetter wird aktualisiert...</string>
+    <string name="weather_tap_refresh">Tippen zum Aktualisieren</string>
+    <string name="weather_return_music">Musik</string>
+    <string name="weather_return_media">Medien</string>
+    <string name="weather_return_music_desc">Zurück zum Musikplayer</string>
+    <string name="weather_return_media_desc">Zurück zum Medien-Hub</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Medien-Pausen-Timeout</string>
+    <string name="settings_media_pause_timeout_desc">Pausiertes Video und Wetter vor dem Zurücksetzen beibehalten</string>
+    <string name="settings_minutes_value">%1$d Min.</string>
 </resources>

@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="44dp"
+    android:height="44dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Outer dark contrast border for Day/Light maps (matches LightCockpitPalette textPrimary) -->
+    <path
+        android:fillAlpha="0.65"
+        android:fillColor="#0F172A"
+        android:pathData="M24,6 L38,38 L24,30.5 L10,38 Z"
+        android:strokeColor="#0F172A"
+        android:strokeLineJoin="round"
+        android:strokeWidth="6.5" />
+    <!-- Crisp light border + vivid automotive chevron fill for Night/Dark maps (matches DarkCockpitPalette textPrimary) -->
+    <path
+        android:fillColor="#2979FF"
+        android:pathData="M24,6 L38,38 L24,30.5 L10,38 Z"
+        android:strokeColor="#F8FAFC"
+        android:strokeLineJoin="round"
+        android:strokeWidth="3.2" />
+    <!-- Subtle right-wing depth facet -->
+    <path
+        android:fillAlpha="0.55"
+        android:fillColor="#1A5FD1"
+        android:pathData="M24,7.5 L36.6,36.4 L24,29.6 Z" />
+</vector>

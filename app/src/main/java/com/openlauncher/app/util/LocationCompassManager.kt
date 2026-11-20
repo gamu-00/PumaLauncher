@@ -115,26 +115,13 @@ class LocationCompassManager(context: Context) {
             sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
         }
 
-        // Location — Robust offline-first registration
-        // GPS Provider (Works 100% offline, sat-based)
+        // Location — Low-frequency GNSS-only registration for sunrise/sunset calculation
         try {
             if (locationManager.allProviders.contains(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 3000L, 5f, locationListener
+                    LocationManager.GPS_PROVIDER, 60_000L, 500f, locationListener
                 )
                 locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let {
-                    locationListener.onLocationChanged(it)
-                }
-            }
-        } catch (_: Exception) {}
-
-        // Network Provider (Works online, cell/wifi-based)
-        try {
-            if (locationManager.allProviders.contains(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, 5000L, 10f, locationListener
-                )
-                locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)?.let {
                     locationListener.onLocationChanged(it)
                 }
             }

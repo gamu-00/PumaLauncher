@@ -105,6 +105,7 @@
     <string name="nav_network_error">Erreur réseau</string>
     <string name="nav_route_error">Impossible de calculer l\'itinéraire</string>
     <string name="nav_recenter">Recentrer</string>
+    <string name="nav_compass_reset">Orienter vers le nord</string>
     <string name="nav_mute_voice">Couper le guidage vocal</string>
     <string name="nav_unmute_voice">Activer le guidage vocal</string>
     <string name="nav_end">Terminer</string>
@@ -312,4 +313,28 @@
     <string name="youtube_loading_stream">Chargement de la vidéo...</string>
     <string name="youtube_video_unplayable">Vidéo non lisible</string>
     <string name="youtube_back_to_youtube">Retour à YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Météo</string>
+    <string name="weather_clear">Dégagé</string>
+    <string name="weather_partly_cloudy">Partiellement nuageux</string>
+    <string name="weather_cloudy">Nuageux</string>
+    <string name="weather_fog">Brouillard</string>
+    <string name="weather_rain">Pluie</string>
+    <string name="weather_thunderstorm">Orage</string>
+    <string name="weather_snow">Neige</string>
+    <string name="weather_feels_like">Ressenti %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Mise à jour météo...</string>
+    <string name="weather_tap_refresh">Appuyer pour actualiser</string>
+    <string name="weather_return_music">Musique</string>
+    <string name="weather_return_media">Média</string>
+    <string name="weather_return_music_desc">Retour au lecteur audio</string>
+    <string name="weather_return_media_desc">Retour au hub vidéo</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Délai de pause multimédia</string>
+    <string name="settings_media_pause_timeout_desc">Maintenir la vidéo en pause et la météo actives avant réinitialisation</string>
+    <string name="settings_minutes_value">%1$d min</string>
 </resources>

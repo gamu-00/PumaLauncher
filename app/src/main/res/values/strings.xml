@@ -105,6 +105,7 @@
     <string name="nav_network_error">Network error</string>
     <string name="nav_route_error">Unable to calculate route</string>
     <string name="nav_recenter">Recenter</string>
+    <string name="nav_compass_reset">Reset compass to North</string>
     <string name="nav_mute_voice">Mute voice guidance</string>
     <string name="nav_unmute_voice">Enable voice guidance</string>
     <string name="nav_end">End</string>
@@ -312,4 +313,28 @@
     <string name="youtube_loading_stream">Loading video...</string>
     <string name="youtube_video_unplayable">Video non riproducibile</string>
     <string name="youtube_back_to_youtube">Torna a YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Weather</string>
+    <string name="weather_clear">Clear</string>
+    <string name="weather_partly_cloudy">Partly cloudy</string>
+    <string name="weather_cloudy">Cloudy</string>
+    <string name="weather_fog">Fog</string>
+    <string name="weather_rain">Rain</string>
+    <string name="weather_thunderstorm">Thunderstorm</string>
+    <string name="weather_snow">Snow</string>
+    <string name="weather_feels_like">Feels like %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Updating weather...</string>
+    <string name="weather_tap_refresh">Tap to refresh</string>
+    <string name="weather_return_music">Music</string>
+    <string name="weather_return_media">Media</string>
+    <string name="weather_return_music_desc">Return to music player</string>
+    <string name="weather_return_media_desc">Return to media hub</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Media pause timeout</string>
+    <string name="settings_media_pause_timeout_desc">Keep paused video and weather active before resetting</string>
+    <string name="settings_minutes_value">%1$d min</string>
 </resources>

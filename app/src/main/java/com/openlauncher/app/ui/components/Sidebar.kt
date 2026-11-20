@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -109,27 +110,36 @@ fun Sidebar(
     BoxWithConstraints(
         modifier = modifier.fillMaxHeight()
     ) {
-        val compact = isCompactHeight || maxHeight < 520.dp
-        val heightScale = (maxHeight.value / 520f).coerceIn(0.65f, 1.25f)
-        val outerPad = if (compact) (4f * heightScale).dp.coerceAtLeast(3.dp) else (6f * heightScale).dp
-        val verticalPad = if (compact) (5f * heightScale).dp.coerceAtLeast(4.dp) else (10f * heightScale).dp
-        val itemGap = if (compact) (4f * heightScale).dp.coerceAtLeast(3.dp) else (8f * heightScale).dp
+        val uiScale = LocalPhysicalScreenMetrics.current.uiScale
+        val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+        val tightVertical = isCompactHeight || maxHeight < 460.dp
+        val heightScale = (maxHeight.value / 520f).coerceIn(0.55f, 1.35f)
+        val outerPad = ((if (tightVertical) 3.5f else 5.5f) * heightScale).dp.coerceIn(2.dp, 6.dp)
+        val verticalPad = ((if (tightVertical) 4f else 8f) * heightScale).dp.coerceIn(3.dp, 10.dp)
+        val itemGap = ((if (tightVertical) 3.5f else 7f) * heightScale).dp.coerceIn(2.dp, 8.dp)
         val moduleShape = CockpitCardShape
         val cardShape = RoundedCornerShape((10f * heightScale).dp.coerceIn(8.dp, 14.dp))
 
-        val hourSp = if (compact) (20f * heightScale).coerceIn(15f, 22f).sp else (26f * heightScale).coerceIn(22f, 30f).sp
-        val minSp = if (compact) (17f * heightScale).coerceIn(13f, 19f).sp else (22f * heightScale).coerceIn(18f, 26f).sp
-        val statusIconSize = if (compact) (14f * heightScale).dp.coerceIn(12.dp, 16.dp) else (18f * heightScale).dp.coerceIn(16.dp, 22.dp)
+        val clockVertPad = (3f * heightScale).dp.coerceIn(2.dp, 5.dp)
+        val clockLineGap = if (tightVertical) 0.dp else 1.dp
+        val clockBottomSpacer = ((if (tightVertical) 4f else 7f) * heightScale).dp.coerceIn(3.dp, 8.dp)
+        val hourSp = ((if (tightVertical) 19f else 25f) * heightScale).coerceIn(13f, 28f).sp
+        val minSp = ((if (tightVertical) 16f else 21f) * heightScale).coerceIn(11f, 24f).sp
+        val statusIconSize = ((if (tightVertical) 14f else 18f) * heightScale).dp.coerceIn(11.dp, 21.dp)
 
-        val innerHeight = (maxHeight - outerPad * 2 - verticalPad * 2).coerceAtLeast(180.dp)
-        val headerReserve = if (compact) 64.dp else 96.dp
+        val estimatedHeaderHeight =
+            ((hourSp.value + minSp.value) * fontScale * 1.12f).dp +
+                clockVertPad * 2 + clockLineGap + clockBottomSpacer + statusIconSize + 8.dp
+        val innerHeight = (maxHeight - outerPad * 2 - verticalPad * 2).coerceAtLeast(140.dp)
         val totalSlots = (railPackages.size + 2).coerceAtLeast(2)
-        val slotBudget = ((innerHeight - headerReserve - itemGap * (totalSlots + 1)) / totalSlots)
-        val maxWidthSlot = (maxWidth - outerPad * 2 - 10.dp).coerceAtLeast(30.dp)
-        val slotSize = minOf(slotBudget, maxWidthSlot).coerceIn(
-            if (compact) 30.dp else 44.dp,
-            if (compact) 46.dp else 56.dp
-        )
+        val availableForSlots = (innerHeight - estimatedHeaderHeight - itemGap * (totalSlots + 1))
+            .coerceAtLeast(22.dp * totalSlots)
+        val slotBudget = availableForSlots / totalSlots
+        val maxWidthSlot = (maxWidth - outerPad * 2 - 6.dp).coerceAtLeast(26.dp)
+        val maxSlotScaled = ((60f * uiScale.coerceIn(0.85f, 1.35f)) / uiScale).dp
+        val slotSize = minOf(slotBudget, maxWidthSlot, maxSlotScaled)
+            .coerceAtLeast(22.dp)
+            .coerceAtMost(slotBudget)
 
         val colors = LocalCockpitColors.current
         Box(
@@ -148,11 +158,14 @@ fun Sidebar(
                 val tabularStyle = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(clockLineGap),
                     modifier = Modifier
                         .clip(cardShape)
                         .combinedClickable(onClick = {}, onLongClick = { showClockSettings = true })
-                        .padding(horizontal = (6f * heightScale).dp, vertical = (4f * heightScale).dp)
+                        .padding(
+                            horizontal = (6f * heightScale).dp.coerceIn(3.dp, 8.dp),
+                            vertical = clockVertPad
+                        )
                 ) {
                     Text(
                         text = time.substringBefore(':'),
@@ -177,7 +190,7 @@ fun Sidebar(
                         maxLines = 1
                     )
                 }
-                Spacer(Modifier.height(if (compact) 6.dp else 8.dp))
+                Spacer(Modifier.height(clockBottomSpacer))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(itemGap),
                     verticalAlignment = Alignment.CenterVertically
@@ -217,7 +230,9 @@ fun Sidebar(
                         },
                         onReplace = { onReplace(index) }
                     )
-                    Spacer(Modifier.height(itemGap))
+                    if (index < railPackages.lastIndex) {
+                        Spacer(Modifier.height(itemGap))
+                    }
                 }
 
                 Spacer(Modifier.weight(1f))
@@ -281,7 +296,7 @@ private fun RailButton(
             )
             .clickable(onClick = onClick)
     ) {
-        Icon(icon, label, tint = if (active) activeContentColor else colors.textPrimary, modifier = Modifier.size(slotSize * 0.5f))
+        Icon(icon, label, tint = if (active) activeContentColor else colors.textPrimary, modifier = Modifier.size(slotSize * 0.60f))
     }
 }
 
@@ -299,7 +314,8 @@ private fun ColdBootSettingsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .width(380.dp)
+                .fillMaxWidth()
+                .widthIn(max = 380.dp)
                 .clip(AaModuleShape)
                 .background(colors.cardSurface)
                 .border(1.dp, colors.hairlineBorder, AaModuleShape)
@@ -456,18 +472,24 @@ private fun RailSlot(
                 .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
         ) {
             if (drawable != null) {
-                val bmp = remember(pkg, drawable) { drawable.toBitmap(96, 96).asImageBitmap() }
-                Image(bitmap = bmp, contentDescription = pkg, modifier = Modifier.size(slotSize * 0.65f))
+                val bmp = remember(pkg, drawable) { drawable.toBitmap(192, 192).asImageBitmap() }
+                Image(
+                    bitmap = bmp,
+                    contentDescription = pkg,
+                    modifier = Modifier
+                        .size(slotSize * 0.78f)
+                        .offset(y = if (pinned) (-1).dp else 0.dp)
+                )
             } else {
-                Icon(Icons.Default.Apps, pkg, tint = colors.textPrimary, modifier = Modifier.size(slotSize * 0.54f))
+                Icon(Icons.Default.Apps, pkg, tint = colors.textPrimary, modifier = Modifier.size(slotSize * 0.62f))
             }
             if (pinned) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 3.dp)
-                        .width(18.dp)
-                        .height(3.dp)
+                        .padding(bottom = 2.dp)
+                        .width((slotSize * 0.34f).coerceIn(12.dp, 20.dp))
+                        .height(2.5.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(accent)
                 )

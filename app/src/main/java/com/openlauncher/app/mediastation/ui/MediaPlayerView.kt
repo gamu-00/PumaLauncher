@@ -107,6 +107,7 @@ internal fun MediaPlayerView(
     onStreamError: () -> Unit,
     onRetryResolve: () -> Unit,
     onSyncProgress: (positionMs: Long, durationMs: Long) -> Unit,
+    onPlaybackActiveChanged: (Boolean) -> Unit = {},
     onBack: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -127,7 +128,14 @@ internal fun MediaPlayerView(
 
     val latestOnStreamError by rememberUpdatedState(onStreamError)
     val latestOnSyncProgress by rememberUpdatedState(onSyncProgress)
+    val latestOnPlaybackActiveChanged by rememberUpdatedState(onPlaybackActiveChanged)
     val latestIsHomeVisible by rememberUpdatedState(isHomeVisible)
+
+    DisposableEffect(Unit) {
+        onDispose {
+            latestOnPlaybackActiveChanged(false)
+        }
+    }
 
     var overlayVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
@@ -376,6 +384,7 @@ internal fun MediaPlayerView(
             playerView.player = null
             isPlaying = false
             isBuffering = false
+            latestOnPlaybackActiveChanged(false)
             abandonAudioFocus()
             onDispose {
                 playerView.player = null
@@ -500,6 +509,7 @@ internal fun MediaPlayerView(
 
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
+                    latestOnPlaybackActiveChanged(playing)
                     if (playing && shouldPlay && latestIsHomeVisible && isLifecycleResumed) {
                         requestAudioFocus()
                     } else {
@@ -636,6 +646,7 @@ internal fun MediaPlayerView(
                 abandonAudioFocus()
                 isPlaying = false
                 isBuffering = false
+                latestOnPlaybackActiveChanged(false)
                 val finalPos = player.currentPosition.coerceAtLeast(0L)
                 val finalDur = player.duration.takeIf { it > 0L } ?: 0L
                 if (finalPos > 0L) {

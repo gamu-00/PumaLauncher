@@ -40,6 +40,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -64,16 +66,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.openlauncher.app.R
+import com.openlauncher.app.data.DEFAULT_MEDIA_PAUSE_TIMEOUT_MINUTES
+import com.openlauncher.app.data.MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+import com.openlauncher.app.data.MIN_MEDIA_PAUSE_TIMEOUT_MINUTES
 import com.openlauncher.app.mediastation.data.EpisodeItem
 import com.openlauncher.app.mediastation.data.MediaPosterItem
 import com.openlauncher.app.ui.theme.AaAmber
 import com.openlauncher.app.ui.theme.AaAmberAlt
 import com.openlauncher.app.ui.theme.LocalCockpitColors
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 internal fun MoviesHubView(
     viewModel: MediaStationViewModel,
+    mediaPauseTimeoutMinutes: Int = DEFAULT_MEDIA_PAUSE_TIMEOUT_MINUTES,
+    onMediaPauseTimeoutChange: (Int) -> Unit = {},
     isCompactHeight: Boolean = false,
     isHomeVisible: Boolean = true,
     onClose: () -> Unit
@@ -136,6 +144,7 @@ internal fun MoviesHubView(
             onStreamError = { viewModel.advanceStreamOnError() },
             onRetryResolve = { viewModel.retryResolveStreams() },
             onSyncProgress = { pos, dur -> viewModel.syncProgress(pos, dur) },
+            onPlaybackActiveChanged = { viewModel.setVideoPlaying(it) },
             onBack = { viewModel.navigateBack(onClose) },
             onClose = onClose
         )
@@ -217,6 +226,8 @@ internal fun MoviesHubView(
                 MoviesScreen.SETTINGS -> MoviesSettingsView(
                     initialAuthKey = state.stremioAuthKey,
                     initialAddonUrl = state.addonBaseUrl,
+                    mediaPauseTimeoutMinutes = mediaPauseTimeoutMinutes,
+                    onMediaPauseTimeoutChange = onMediaPauseTimeoutChange,
                     onSave = { auth, addon ->
                         keyboardController?.hide()
                         viewModel.saveSettings(auth, addon)
@@ -906,6 +917,8 @@ private fun SearchGridPosterCard(
 private fun MoviesSettingsView(
     initialAuthKey: String,
     initialAddonUrl: String,
+    mediaPauseTimeoutMinutes: Int,
+    onMediaPauseTimeoutChange: (Int) -> Unit,
     onSave: (authKey: String, addonUrl: String) -> Unit
 ) {
     val colors = LocalCockpitColors.current
@@ -1011,6 +1024,61 @@ private fun MoviesSettingsView(
             color = colors.textSecondary,
             fontSize = 10.sp
         )
+
+        val clampedTimeout = mediaPauseTimeoutMinutes.coerceIn(
+            MIN_MEDIA_PAUSE_TIMEOUT_MINUTES,
+            MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.elevatedSurface)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_media_pause_timeout),
+                    color = colors.textPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = stringResource(R.string.settings_minutes_value, clampedTimeout),
+                    color = AaAmberAlt,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Slider(
+                value = clampedTimeout.toFloat(),
+                onValueChange = { raw ->
+                    val snapped = raw.roundToInt().coerceIn(
+                        MIN_MEDIA_PAUSE_TIMEOUT_MINUTES,
+                        MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+                    )
+                    if (snapped != clampedTimeout) {
+                        onMediaPauseTimeoutChange(snapped)
+                    }
+                },
+                valueRange = MIN_MEDIA_PAUSE_TIMEOUT_MINUTES.toFloat()..MAX_MEDIA_PAUSE_TIMEOUT_MINUTES.toFloat(),
+                colors = SliderDefaults.colors(
+                    thumbColor = AaAmberAlt,
+                    activeTrackColor = AaAmberAlt,
+                    inactiveTrackColor = colors.hairlineBorder
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         Button(
             onClick = { onSave(authKey, addonUrl) },

@@ -27,7 +27,7 @@ data class CockpitColors(
         get() = Brush.verticalGradient(listOf(borderTop, borderBottom))
 
     val overlayPanelSurface: Color
-        get() = if (isLight) Color(0xF5FFFFFF) else Color(0xEB12161F)
+        get() = if (isLight) Color(0xFFF5F8FC) else Color(0xEB12161F)
 
     val dangerContainer: Color
         get() = if (isLight) Color(0xFFFEE2E2) else Color(0xFF2B0B0E)
@@ -52,14 +52,14 @@ val DarkCockpitPalette = CockpitColors(
 
 val LightCockpitPalette = CockpitColors(
     isLight = true,
-    canvasBackground = Color(0xFFEEF2F6),
-    cardSurface = Color(0xFFFFFFFF),
-    elevatedSurface = Color(0xFFF1F5F9),
-    dockSurface = Color(0xFFF8FAFC),
-    glassPillSurface = Color(0xEBFFFFFF),
-    borderTop = Color(0xFFFFFFFF),
-    borderBottom = Color(0xFFCBD5E1),
-    hairlineBorder = Color(0xFFCBD5E1),
+    canvasBackground = Color(0xFFDCE3EC),
+    cardSurface = Color(0xFFEDF1F7),
+    elevatedSurface = Color(0xFFE3E9F2),
+    dockSurface = Color(0xFFEDF1F7),
+    glassPillSurface = Color(0xFFF5F8FC),
+    borderTop = Color(0xFFF5F8FC),
+    borderBottom = Color(0xFFB8C4D4),
+    hairlineBorder = Color(0xFFB8C4D4),
     textPrimary = Color(0xFF0F172A),
     textSecondary = Color(0xFF475569)
 )

@@ -37,12 +37,20 @@ import com.openlauncher.app.data.AppFont
 import com.openlauncher.app.data.AppSettings
 import com.openlauncher.app.data.DayNightMode
 import com.openlauncher.app.data.GradientDirection
+import com.openlauncher.app.data.MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+import com.openlauncher.app.data.MAX_TEXT_SCALE
+import com.openlauncher.app.data.MIN_MEDIA_PAUSE_TIMEOUT_MINUTES
+import com.openlauncher.app.data.MIN_TEXT_SCALE
 import com.openlauncher.app.data.THEME_COLOR_PRESETS
+import com.openlauncher.app.data.UI_SCALE_PRESETS
+import com.openlauncher.app.data.effectiveUiScale
 import com.openlauncher.app.service.MediaNotificationListenerService
 import com.openlauncher.app.ui.components.ColorPickerDialog
 import com.openlauncher.app.ui.components.ConfirmDialog
 import com.openlauncher.app.ui.theme.*
 import com.openlauncher.app.util.AppLanguageManager
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
@@ -77,7 +85,10 @@ fun SettingsScreen(
     val screenBg = colors.canvasBackground
     val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
 
+    val physicalMetrics = LocalPhysicalScreenMetrics.current
+
     Box(
+        contentAlignment = Alignment.TopCenter,
         modifier = modifier
             .fillMaxSize()
             .background(screenBg)
@@ -85,6 +96,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = (960f / physicalMetrics.uiScale).dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -469,6 +481,71 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Media Station ────────────────────────────────────────────────────
+            SettingsSection(stringResource(R.string.settings_section_media_station), accent) {
+                val clampedPauseTimeout = settings.mediaPauseTimeoutMinutes.coerceIn(
+                    MIN_MEDIA_PAUSE_TIMEOUT_MINUTES,
+                    MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SettingsRow(
+                        label    = stringResource(R.string.settings_media_pause_timeout),
+                        sublabel = stringResource(R.string.settings_media_pause_timeout_desc),
+                        icon     = Icons.Default.PauseCircleOutline,
+                        accent   = accent
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .clip(AaCardShape)
+                                .background(colors.elevatedSurface)
+                                .border(1.dp, colors.hairlineBorder, AaCardShape)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_minutes_value, clampedPauseTimeout),
+                                color = accent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Slider(
+                        value         = clampedPauseTimeout.toFloat(),
+                        onValueChange = { raw ->
+                            val snapped = raw.roundToInt().coerceIn(
+                                MIN_MEDIA_PAUSE_TIMEOUT_MINUTES,
+                                MAX_MEDIA_PAUSE_TIMEOUT_MINUTES
+                            )
+                            if (snapped != clampedPauseTimeout) {
+                                onUpdate { copy(mediaPauseTimeoutMinutes = snapped) }
+                            }
+                        },
+                        valueRange    = MIN_MEDIA_PAUSE_TIMEOUT_MINUTES.toFloat()..MAX_MEDIA_PAUSE_TIMEOUT_MINUTES.toFloat(),
+                        colors        = sliderColors(accent),
+                        modifier      = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_minutes_value, MIN_MEDIA_PAUSE_TIMEOUT_MINUTES),
+                            color = colors.textSecondary,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_minutes_value, MAX_MEDIA_PAUSE_TIMEOUT_MINUTES),
+                            color = colors.textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
             // ── Appearance ───────────────────────────────────────────────────────
             SettingsSection(stringResource(R.string.settings_section_appearance), accent) {
                 SettingsRow(
@@ -781,17 +858,21 @@ fun SettingsScreen(
                 SettingsDivider()
 
                 Column {
+                    val clampedTextScale = settings.textScale.coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
                     SettingsRow(
                         label    = stringResource(R.string.settings_text_scale),
-                        sublabel = "${"%.0f".format(settings.textScale * 100)}%",
+                        sublabel = "${(clampedTextScale * 100).roundToInt()}%",
                         icon     = Icons.Default.TextFields,
                         accent   = accent
                     ) {}
                     Slider(
-                        value         = settings.textScale,
-                        onValueChange = { onUpdate { copy(textScale = it) } },
-                        valueRange    = 0.8f..1.4f,
-                        steps         = 5,
+                        value         = clampedTextScale,
+                        onValueChange = { raw ->
+                            val snapped = ((raw * 20f).roundToInt() / 20f).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
+                            onUpdate { copy(textScale = snapped) }
+                        },
+                        valueRange    = MIN_TEXT_SCALE..MAX_TEXT_SCALE,
+                        steps         = 6,
                         colors        = sliderColors(accent),
                         modifier      = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     )
@@ -800,20 +881,64 @@ fun SettingsScreen(
                 SettingsDivider()
 
                 Column {
+                    val activeUiScale = settings.effectiveUiScale()
                     SettingsRow(
                         label    = stringResource(R.string.settings_ui_scale),
-                        sublabel = stringResource(R.string.settings_ui_scale_desc, (settings.uiScale * 100).toInt()),
+                        sublabel = stringResource(R.string.settings_ui_scale_desc, (activeUiScale * 100).roundToInt()),
                         icon     = Icons.Default.ZoomIn,
                         accent   = accent
                     ) {}
-                    Slider(
-                        value         = settings.uiScale,
-                        onValueChange = { onUpdate { copy(uiScale = it) } },
-                        valueRange    = 0.7f..1.5f,
-                        steps         = 7,
-                        colors        = sliderColors(accent),
-                        modifier      = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    )
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        val chipFontSize = if (maxWidth < 400.dp) 12.sp else 13.sp
+                        val presetRows = if (maxWidth >= 310.dp) listOf(UI_SCALE_PRESETS) else UI_SCALE_PRESETS.chunked(3)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            presetRows.forEach { rowPresets ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowPresets.forEach { preset ->
+                                        val selected = abs(activeUiScale - preset) < 0.005f
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(42.dp)
+                                                .clip(AaCardShape)
+                                                .background(if (selected) accent else colors.elevatedSurface)
+                                                .border(
+                                                    width = if (selected) 1.5.dp else 1.dp,
+                                                    color = if (selected) accent else colors.hairlineBorder,
+                                                    shape = AaCardShape
+                                                )
+                                                .clickable {
+                                                    if (!selected) {
+                                                        onUpdate { copy(uiScale = preset) }
+                                                    }
+                                                }
+                                                .padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "${(preset * 100).roundToInt()}%",
+                                                color = if (selected) onAccent else colors.textPrimary,
+                                                fontSize = chipFontSize,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

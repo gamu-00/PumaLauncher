@@ -91,6 +91,13 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
     private val _youTubeState = MutableStateFlow(YouTubeUiState())
     val youTubeState: StateFlow<YouTubeUiState> = _youTubeState.asStateFlow()
 
+    private val _isVideoPlaying = MutableStateFlow(false)
+    val isVideoPlaying: StateFlow<Boolean> = _isVideoPlaying.asStateFlow()
+
+    fun setVideoPlaying(playing: Boolean) {
+        _isVideoPlaying.value = playing
+    }
+
     private val backStack = ArrayDeque<MoviesScreen>()
     private var searchJob: Job? = null
     private var episodesJob: Job? = null
@@ -558,6 +565,7 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
         episodesJob?.cancel()
         resolveJob?.cancel()
         backStack.clear()
+        _isVideoPlaying.value = false
         _uiState.update {
             it.copy(
                 screen = MoviesScreen.CATALOG,
@@ -594,6 +602,7 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
         }
         if (current == MoviesScreen.PLAYER) {
             resolveJob?.cancel()
+            _isVideoPlaying.value = false
             _uiState.update {
                 it.copy(
                     activeItem = null,
@@ -643,6 +652,7 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
 
     fun closeYouTubePlayer() {
         youTubeExtractJob?.cancel()
+        _isVideoPlaying.value = false
         _youTubeState.update {
             it.copy(
                 isExtracting = false,
@@ -654,6 +664,7 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
 
     fun onYouTubePlaybackError() {
         youTubeExtractJob?.cancel()
+        _isVideoPlaying.value = false
         showUnplayableYouTubeNotice()
     }
 
@@ -665,7 +676,14 @@ class MediaStationViewModel(application: Application) : AndroidViewModel(applica
 
     fun resetYouTubeState() {
         youTubeExtractJob?.cancel()
+        _isVideoPlaying.value = false
         _youTubeState.value = YouTubeUiState()
+    }
+
+    /** Resets all active Movies and YouTube playback sessions back to an idle state. */
+    fun resetAllToIdle() {
+        resetToCatalog()
+        resetYouTubeState()
     }
 
     private fun showUnplayableYouTubeNotice() {

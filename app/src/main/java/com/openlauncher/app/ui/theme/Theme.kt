@@ -8,12 +8,42 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import com.openlauncher.app.data.AppFont
+import com.openlauncher.app.data.DEFAULT_UI_SCALE
 
 val LocalDayMode = staticCompositionLocalOf { false }
+
+@Immutable
+data class PhysicalScreenMetrics(
+    val screenWidthDp: Dp,
+    val screenHeightDp: Dp,
+    val baseDensity: Density,
+    val uiScale: Float
+) {
+    val aspectRatio: Float
+        get() = if (screenHeightDp > 0.dp) screenWidthDp / screenHeightDp else 1.77f
+    val isCompactHeight: Boolean
+        get() = screenHeightDp < 520.dp
+    val isPortrait: Boolean
+        get() = aspectRatio < 1.1f
+    val isLargeDisplay: Boolean
+        get() = screenWidthDp >= 1100.dp && !isPortrait
+}
+
+val LocalPhysicalScreenMetrics = staticCompositionLocalOf {
+    PhysicalScreenMetrics(
+        screenWidthDp = 1080.dp,
+        screenHeightDp = 720.dp,
+        baseDensity = Density(1f, 1f),
+        uiScale = DEFAULT_UI_SCALE
+    )
+}
 
 /** Mini AA corner radii: 16dp main modules, 12dp cards and buttons. */
 val AaModuleShape = RoundedCornerShape(16.dp)

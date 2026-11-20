@@ -7,9 +7,9 @@
 
 **An automotive-first Android launcher designed for landscape head units and AI Boxes.**
 
-Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes). It combines split-screen navigation, an ad-free hybrid YouTube player, and a unified media station inside a distraction-reduced cockpit UI.
+Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes, scaling across 6" to 16" displays). It combines split-screen pure-GNSS navigation, an ad-free hybrid YouTube player, contextual live weather, and a unified media station inside a distraction-reduced cockpit UI.
 
-> **Current Release:** `v0.1-beta` — Open beta build. Core features are functional and signed for release, while navigation HUD enhancements and UI refinements are actively in progress.
+> **Current Release:** `v0.1.1-beta` — Beta build. Core features are functional and signed for release, introducing a pure GNSS Kalman navigation engine, responsive 6"–16" UI scaling, contextual live weather, and an anti-glare daylight theme.
 
 ---
 
@@ -18,16 +18,20 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 ## Key Features
 
-- **Automotive Landscape Cockpit UI**
-  - Purpose-built for wide horizontal car displays with adaptive Day/Night theming (`CockpitColors`) and custom vector branding.
+- **Automotive Landscape Cockpit UI & Responsive Scaling (6" to 16")**
+  - Purpose-built for wide horizontal car displays with adaptive Day/Night theming (`CockpitColors`): a high-contrast Dark Cockpit theme and a **Daylight Anti-Glare** theme palette (`Cool Slate / Stone Grey`) to minimize cabin reflections.
+  - **Responsive UI Scaling:** 6 discrete scaling presets (`65%`, `80%`, `100%`, `120%`, `140%`, `160%`) paired with zoom-independent physical screen breakpoints, larger dock/drawer icons, and overflow-protected turn-by-turn banners.
   - Full localization across **6 languages**: English, Italian, German, French, Spanish, and Portuguese.
-- **Integrated Split-Screen Navigation (MapLibre)**
-  - Persistent interactive map rendered side-by-side with the media card—no app switching required.
+- **Integrated Split-Screen Navigation (MapLibre + Pure GNSS)**
+  - Persistent interactive map rendered side-by-side with the media card—no app switching required—with active turn-by-turn routing persisting seamlessly across Home, App Library, and Settings.
+  - **Pure GNSS Engine (`FilteredGpsLocationEngine`):** Dedicated `GPS_PROVIDER` pipeline with physical outlier rejection, 2D constant-velocity Kalman smoothing, standstill anti-jitter, and soft snap-to-route projection.
+  - **Cockpit Map Controls:** Native vector directional arrow (`RenderMode.GPS`), free-look camera panning with Compass reset and smooth Recenter, plus a faded traveled-route trail.
   - Address and POI search powered by **Photon** geocoding, paired with turn-by-turn routing via **Valhalla**.
 - **Hybrid Ad-Free YouTube Player (Up to 720p)**
   - Browse subscriptions, search, and keep your Google account signed in through an isolated `WebView` with persistent cookies and OAuth/2FA popup support.
   - Selecting any video or Short intercepts SPA navigation and hands the stream over to **NewPipeExtractor** + **Media3 ExoPlayer**, eliminating web-injected ads and background visibility pauses.
-- **Unified Media Station**
+- **Unified Media Station & Contextual Live Weather**
+  - **Contextual Live Weather (`CockpitWeatherCard`):** Powered by Open-Meteo (`is_day` + Material You Canvas particle effects for sun, moon/stars, clouds, fog, rain, thunderstorms, and snow), automatically triggered after 15s of active video or music playback with a quick-return control and a configurable media pause timeout (`1–30 min`).
   - **Movies & Series Hub:** Cinemeta metadata catalog with Stremio addon stream resolution, language-aware result sorting, and source/quality badges.
   - **Now Playing Widget:** System-wide media controller (`MediaNotificationListenerService`) to control external music apps (Spotify, YouTube Music, etc.) directly from the dashboard.
 - **Strict Audio Focus Discipline**
@@ -42,6 +46,7 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 | Challenge on Android Head Units | Solution Implemented | Why It Works |
 | :--- | :--- | :--- |
+| **Noisy Fused/Wi-Fi location jumps in vehicles** | **Pure GNSS Kalman Engine** (`FilteredGpsLocationEngine`) | Bypasses Wi-Fi/Cell triangulation in favor of `GPS_PROVIDER` with physical outlier rejection, 2D constant-velocity Kalman filtering, standstill suppression, and route-snapping. |
 | **YouTube WebView playback breaks** (auto-pauses when split-screen loses focus, heavy JS overhead, intrusive ads) | **Hybrid WebView + Native ExoPlayer Pipeline** (`YouTubeView` → `YouTubeStreamExtractor` → `MediaPlayerView`) | The `WebView` acts purely as an authenticated catalog browser (with a sanitized User-Agent). Video URLs are extracted server-side via InnerTube/NewPipe and played natively in `ExoPlayer`, bypassing web ad injection and Page Visibility throttling. |
 | **YouTube no longer serves 720p muxed streams** (`videoStreams` often caps at 360p) | **On-the-fly DASH Stream Merging** (`MergingMediaSource`) | `YouTubeStreamExtractor` pairs the highest available `<= 720p` video-only stream with the best `m4a` audio stream and merges them seamlessly in Media3. |
 | **Cropped or stretched videos on wide head-unit cards** | **Dynamic Native Aspect Ratio Letterboxing** (`RESIZE_MODE_FIT` + `onVideoSizeChanged`) | The player fills the full card width against a pure `#000000` canvas while preserving native proportions—rendering both 16:9 videos and 9:16 vertical Shorts intact without edge cropping. |
@@ -53,6 +58,7 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 - **Language & UI:** Kotlin, Jetpack Compose, Android Views (hybrid)
 - **Maps & Routing:** MapLibre Native, Photon Geocoding, Valhalla Routing
+- **Weather:** Open-Meteo Forecast API (no API key required)
 - **Media & Stream Extraction:** AndroidX Media3 (`ExoPlayer`, `MergingMediaSource`, FFmpeg extension), `NewPipeExtractor`
 - **Networking & Serialization:** OkHttp, Gson
 
@@ -60,16 +66,56 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 ---
 
+## Project Structure
+
+```text
+app/src/main/java/com/openlauncher/app/
+├── MainActivity.kt                      # Host activity, physical screen metrics & contextual weather trigger
+├── data/
+│   ├── AppSettings.kt                   # UI scaling presets, theme/media preferences & defaults
+│   ├── SettingsRepository.kt            # DataStore persistence
+│   └── WeatherRepository.kt             # Open-Meteo client with 30-min / 10 km cache
+├── mediastation/
+│   ├── MediaStationCard.kt              # Split Movies | YouTube | Contextual Weather container
+│   ├── YouTubeView.kt                   # Authenticated WebView catalog + stream handoff
+│   └── ui/
+│       ├── MediaPlayerView.kt           # Native ExoPlayer surface with audio focus discipline
+│       ├── MediaStationViewModel.kt     # Playback, extraction & idle-reset state
+│       └── MoviesHubView.kt             # Cinemeta & Stremio addon hub
+├── ui/
+│   ├── components/
+│   │   ├── CockpitWeatherCard.kt        # Material You live Canvas particle weather card
+│   │   └── Sidebar.kt                   # Responsive cockpit dock & clock/status rail
+│   ├── screen/
+│   │   ├── HomeScreen.kt                # Split-screen dashboard layout & physical breakpoints
+│   │   ├── NativeNavigatorPanel.kt      # MapLibre HUD, RenderMode.GPS, compass, recenter & route trail
+│   │   ├── NavigationEngine.kt          # Valhalla routing, TTS guidance & active route state
+│   │   ├── AppLibraryScreen.kt          # Paginated app drawer
+│   │   └── SettingsScreen.kt            # Scaling presets, media timeout & cockpit preferences
+│   ├── theme/
+│   │   ├── CockpitColors.kt             # Dark Cockpit & Daylight Anti-Glare palettes
+│   │   └── Theme.kt                     # PhysicalScreenMetrics & Material 3 theme setup
+│   └── widget/
+│       └── NowPlayingWidget.kt          # System media controller widget
+├── util/
+│   ├── FilteredGpsLocationEngine.kt     # Pure GNSS LocationEngine with 2D Kalman & anti-jitter
+│   └── LocationCompassManager.kt        # Compass & low-frequency GNSS day/night helper
+└── viewmodel/
+    └── LauncherViewModel.kt             # Launcher state, shortcuts & weather coordination
+```
+
+---
+
 ## Installation & Building from Source
 
 ### Installing the Beta APK (Testers)
-1. Download `PumaLauncher-v0.1-beta-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
-2. Install it on your Android head unit or AI Box (Android 13 / API 33 recommended) and grant **Notification Access** when prompted to enable the *Now Playing* media widget.
+1. Download `PumaLauncher-v0.1.1-beta-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
+2. Install it on your Android head unit or AI Box (Android 13 / API 33 recommended) and grant **Location** and **Notification Access** when prompted to enable pure-GNSS navigation and the *Now Playing* media widget.
 
 ### Compiling from Source
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/gamu-00/PumaLauncher.git](https://github.com/gamu-00/PumaLauncher.git)
+   git clone https://github.com/gamu-00/PumaLauncher.git
    cd PumaLauncher
    ```
 2. For signed **Release** builds (`assembleRelease`), create a `keystore.properties` file in the project root (ignored by Git):
@@ -87,11 +133,11 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 ---
 
-## Known Limitations & Roadmap (`v0.1-beta`)
+## Known Limitations & Roadmap (`v0.1.1-beta`)
 
 - **Upstream YouTube Client Changes:** Because stream extraction depends on `NewPipeExtractor`, periodic server-side changes by YouTube will require updating the `NewPipeExtractor` version in `app/build.gradle.kts`.
-- **Navigation HUD Evolution:** The current MapLibre module handles search and route rendering; a dedicated automotive turn-by-turn HUD and voice guidance overhaul is planned for `v0.2`.
-- **Hardware Target:** Layout proportions are tuned primarily for landscape head units (8"+); portrait phone screens are not the primary target.
+- **Navigation HUD Evolution:** `v0.1.1-beta` introduces pure GNSS Kalman filtering, native vector arrow rendering, free-look/recenter controls, and traveled-route trails; further turn-by-turn HUD polish and offline map enhancements are planned for `v0.2`.
+- **Hardware Target:** Layout proportions and scaling presets (`65%`–`160%`) are tuned for landscape head units and automotive displays (6" to 16"); portrait phone screens are not the primary target.
 
 ---
 
@@ -99,3 +145,4 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 - Forked from [OpenLauncher](https://github.com/OpenLauncherTeam/openlauncher).
 - YouTube stream extraction powered by [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor).
+- Weather data powered by [Open-Meteo](https://open-meteo.com/).

@@ -713,6 +713,7 @@ internal fun YouTubeView(
                 onStreamError = { viewModel.onYouTubePlaybackError() },
                 onRetryResolve = {},
                 onSyncProgress = { _, _ -> },
+                onPlaybackActiveChanged = { viewModel.setVideoPlaying(it) },
                 onBack = { viewModel.closeYouTubePlayer() },
                 onClose = {
                     viewModel.closeYouTubePlayer()

@@ -44,8 +44,9 @@ class SettingsRepository(private val context: Context) {
         val PINNED_INITIALIZED        = booleanPreferencesKey("pinned_initialized")
         val HIDDEN_PACKAGES_JSON      = stringPreferencesKey("hidden_packages_json")
         val SHOW_HIDDEN_APPS          = booleanPreferencesKey("show_hidden_apps")
-        val AVOID_TOLLS               = booleanPreferencesKey("avoid_tolls")
-        val VOICE_GUIDANCE_ENABLED    = booleanPreferencesKey("voice_guidance_enabled")
+        val AVOID_TOLLS                 = booleanPreferencesKey("avoid_tolls")
+        val VOICE_GUIDANCE_ENABLED      = booleanPreferencesKey("voice_guidance_enabled")
+        val MEDIA_PAUSE_TIMEOUT_MINUTES = intPreferencesKey("media_pause_timeout_minutes")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -76,8 +77,8 @@ class SettingsRepository(private val context: Context) {
             customLightFontColor     = customLightFontColor,
             wallpaperUri             = prefs[Keys.WALLPAPER_URI] ?: defaults.wallpaperUri,
             fontBold                 = prefs[Keys.FONT_BOLD] ?: defaults.fontBold,
-            textScale                = prefs[Keys.TEXT_SCALE] ?: defaults.textScale,
-            uiScale                  = prefs[Keys.UI_SCALE] ?: defaults.uiScale,
+            textScale                = (prefs[Keys.TEXT_SCALE] ?: defaults.textScale).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE),
+            uiScale                  = snapUiScalePreset(prefs[Keys.UI_SCALE] ?: defaults.uiScale),
             appFont                  = prefs[Keys.APP_FONT]?.let { runCatching { AppFont.valueOf(it) }.getOrNull() } ?: defaults.appFont,
             useGradient              = prefs[Keys.USE_GRADIENT] ?: defaults.useGradient,
             gradientEndColor         = prefs[Keys.GRADIENT_END_COLOR] ?: defaults.gradientEndColor,
@@ -93,8 +94,10 @@ class SettingsRepository(private val context: Context) {
             pinnedInitialized        = prefs[Keys.PINNED_INITIALIZED] ?: defaults.pinnedInitialized,
             hiddenPackages           = readStringList(prefs[Keys.HIDDEN_PACKAGES_JSON]),
             showHiddenApps           = prefs[Keys.SHOW_HIDDEN_APPS] ?: defaults.showHiddenApps,
-            avoidTolls               = prefs[Keys.AVOID_TOLLS] ?: defaults.avoidTolls,
-            voiceGuidanceEnabled     = prefs[Keys.VOICE_GUIDANCE_ENABLED] ?: defaults.voiceGuidanceEnabled
+            avoidTolls                 = prefs[Keys.AVOID_TOLLS] ?: defaults.avoidTolls,
+            voiceGuidanceEnabled       = prefs[Keys.VOICE_GUIDANCE_ENABLED] ?: defaults.voiceGuidanceEnabled,
+            mediaPauseTimeoutMinutes   = (prefs[Keys.MEDIA_PAUSE_TIMEOUT_MINUTES] ?: defaults.mediaPauseTimeoutMinutes)
+                .coerceIn(MIN_MEDIA_PAUSE_TIMEOUT_MINUTES, MAX_MEDIA_PAUSE_TIMEOUT_MINUTES)
         )
     }
 
@@ -136,8 +139,8 @@ class SettingsRepository(private val context: Context) {
         }
         prefs[Keys.WALLPAPER_URI]           = s.wallpaperUri
         prefs[Keys.FONT_BOLD]               = s.fontBold
-        prefs[Keys.TEXT_SCALE]              = s.textScale
-        prefs[Keys.UI_SCALE]                = s.uiScale
+        prefs[Keys.TEXT_SCALE]              = s.textScale.coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
+        prefs[Keys.UI_SCALE]                = snapUiScalePreset(s.uiScale)
         prefs[Keys.APP_FONT]                = s.appFont.name
         prefs[Keys.USE_GRADIENT]            = s.useGradient
         prefs[Keys.GRADIENT_END_COLOR]      = s.gradientEndColor
@@ -153,8 +156,10 @@ class SettingsRepository(private val context: Context) {
         prefs[Keys.PINNED_INITIALIZED]      = s.pinnedInitialized
         prefs[Keys.HIDDEN_PACKAGES_JSON]    = gson.toJson(s.hiddenPackages)
         prefs[Keys.SHOW_HIDDEN_APPS]        = s.showHiddenApps
-        prefs[Keys.AVOID_TOLLS]             = s.avoidTolls
-        prefs[Keys.VOICE_GUIDANCE_ENABLED]  = s.voiceGuidanceEnabled
+        prefs[Keys.AVOID_TOLLS]                  = s.avoidTolls
+        prefs[Keys.VOICE_GUIDANCE_ENABLED]       = s.voiceGuidanceEnabled
+        prefs[Keys.MEDIA_PAUSE_TIMEOUT_MINUTES]  = s.mediaPauseTimeoutMinutes
+            .coerceIn(MIN_MEDIA_PAUSE_TIMEOUT_MINUTES, MAX_MEDIA_PAUSE_TIMEOUT_MINUTES)
     }
 
     suspend fun resetToDefaults() {

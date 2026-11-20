@@ -28,12 +28,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
@@ -80,9 +82,14 @@ fun AppLibraryScreen(
         else byName.sortedByDescending { it.appName.lowercase() }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().background(colors.canvasBackground)) {
-        val aspectRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else 1.77f
-        val isCompactHeight = maxHeight < 520.dp
+    BoxWithConstraints(
+        contentAlignment = Alignment.TopCenter,
+        modifier = modifier.fillMaxSize().background(colors.canvasBackground)
+    ) {
+        val physicalMetrics = LocalPhysicalScreenMetrics.current
+        val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+        val aspectRatio = physicalMetrics.aspectRatio
+        val isTightHeight = physicalMetrics.isCompactHeight || maxHeight < 460.dp
         val gridColumns = when {
             aspectRatio < 1.1f -> 3
             aspectRatio >= 2.1f -> 6
@@ -91,15 +98,44 @@ fun AppLibraryScreen(
         val gridRows = if (aspectRatio < 1.1f) 4 else 2
         val appsPerPage = gridColumns * gridRows
 
-        val headerHeight = if (isCompactHeight) 38.dp else 44.dp
-        val headerVerticalPad = if (isCompactHeight) 6.dp else 10.dp
-        val gridGap = if (isCompactHeight) 8.dp else 10.dp
-        val indicatorPad = if (isCompactHeight) 6.dp else 10.dp
-        val tileIconSize = if (isCompactHeight) 40.dp else 52.dp
-        val tilePadding = if (isCompactHeight) 6.dp else 8.dp
-        val tileSpacer = if (isCompactHeight) 4.dp else 6.dp
+        val maxDrawerWidth = (1280f / physicalMetrics.uiScale).dp
+        val effectiveDrawerWidth = minOf(maxWidth, maxDrawerWidth)
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        val headerHeight = if (isTightHeight) 36.dp else 44.dp
+        val headerVerticalPad = if (isTightHeight) 5.dp else 10.dp
+        val gridGap = if (isTightHeight) 6.dp else 10.dp
+        val indicatorPad = if (isTightHeight) 5.dp else 10.dp
+        val indicatorReserve = if (isTightHeight) 20.dp else 28.dp
+        val pagerHorizPad = if (isTightHeight) 10.dp else 12.dp
+        val pagerVertPad = 4.dp
+
+        val availGridW = (effectiveDrawerWidth - pagerHorizPad * 2 - gridGap * (gridColumns - 1))
+            .coerceAtLeast(120.dp)
+        val availGridH = (maxHeight - (headerHeight + headerVerticalPad * 2) - indicatorReserve - pagerVertPad * 2 - gridGap * (gridRows - 1))
+            .coerceAtLeast(100.dp)
+        val cellW = availGridW / gridColumns
+        val cellH = availGridH / gridRows
+
+        val tilePadding = (minOf(cellW, cellH) * 0.05f).coerceIn(4.dp, 8.dp)
+        val tileSpacer = (cellH * 0.045f).coerceIn(3.dp, 8.dp)
+        val labelFontSize = when {
+            cellH < 95.dp  -> 11.sp
+            cellH < 130.dp -> 12.sp
+            else           -> 14.sp
+        }
+        val labelReserve = (labelFontSize.value * fontScale * 1.45f).dp
+        val maxIconW = (cellW - tilePadding * 2).coerceAtLeast(32.dp)
+        val maxIconH = (cellH - tilePadding * 2 - tileSpacer - labelReserve).coerceAtLeast(32.dp)
+        val tileIconSize = minOf(maxIconW * 0.72f, maxIconH * 0.78f)
+            .coerceAtMost(minOf(maxIconW, maxIconH))
+            .coerceIn(36.dp, 92.dp)
+
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth()
+                .widthIn(max = maxDrawerWidth)
+        ) {
             // Header: Search bar + A-Z / Z-A toggle
             Row(
                 modifier = Modifier
@@ -125,7 +161,7 @@ fun AppLibraryScreen(
                         value         = query,
                         onValueChange = { query = it },
                         singleLine    = true,
-                        textStyle     = TextStyle(color = colors.textPrimary, fontSize = if (isCompactHeight) 14.sp else 16.sp),
+                        textStyle     = TextStyle(color = colors.textPrimary, fontSize = if (isTightHeight) 14.sp else 16.sp),
                         cursorBrush   = SolidColor(accent),
                         modifier      = Modifier.weight(1f).onFocusChanged { searchFocused = it.isFocused },
                         decorationBox = { inner ->
@@ -135,7 +171,7 @@ fun AppLibraryScreen(
                                         if (isPickerMode) stringResource(R.string.drawer_choose_app)
                                         else stringResource(R.string.drawer_search_apps, filtered.size),
                                         color = colors.textSecondary,
-                                        fontSize = if (isCompactHeight) 14.sp else 16.sp
+                                        fontSize = if (isTightHeight) 14.sp else 16.sp
                                     )
                                 }
                                 inner()
@@ -160,7 +196,7 @@ fun AppLibraryScreen(
                     Text(
                         if (ascending) "A-Z" else "Z-A",
                         color = colors.textPrimary,
-                        fontSize = if (isCompactHeight) 14.sp else 15.sp,
+                        fontSize = if (isTightHeight) 14.sp else 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -195,7 +231,7 @@ fun AppLibraryScreen(
             ) { pageIndex ->
                 val pageApps = pages.getOrNull(pageIndex).orEmpty()
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = pagerHorizPad, vertical = pagerVertPad),
                     verticalArrangement = Arrangement.spacedBy(gridGap)
                 ) {
                     for (row in 0 until gridRows) {
@@ -209,16 +245,17 @@ fun AppLibraryScreen(
                                     Spacer(Modifier.weight(1f))
                                 } else {
                                     AppTile(
-                                        app          = app,
-                                        pinned       = app.packageName in pinnedPackages,
-                                        isHidden     = app.packageName in hiddenPackages,
-                                        accent       = accent,
-                                        isPickerMode = isPickerMode,
-                                        iconSize     = tileIconSize,
-                                        tilePadding  = tilePadding,
-                                        tileSpacer   = tileSpacer,
-                                        modifier     = Modifier.weight(1f).fillMaxHeight(),
-                                        onClick      = {
+                                        app           = app,
+                                        pinned        = app.packageName in pinnedPackages,
+                                        isHidden      = app.packageName in hiddenPackages,
+                                        accent        = accent,
+                                        isPickerMode  = isPickerMode,
+                                        iconSize      = tileIconSize,
+                                        tilePadding   = tilePadding,
+                                        tileSpacer    = tileSpacer,
+                                        labelFontSize = labelFontSize,
+                                        modifier      = Modifier.weight(1f).fillMaxHeight(),
+                                        onClick       = {
                                             if (isPickerMode && pickerSlot != null) {
                                                 onPickerSelect(pickerSlot, app)
                                             } else {
@@ -226,8 +263,8 @@ fun AppLibraryScreen(
                                                 onAppClick(app)
                                             }
                                         },
-                                        onTogglePin  = { onPinApp(app) },
-                                        onToggleHide = { onHideApp(app) }
+                                        onTogglePin   = { onPinApp(app) },
+                                        onToggleHide  = { onHideApp(app) }
                                     )
                                 }
                             }
@@ -284,6 +321,7 @@ private fun AppTile(
     iconSize: Dp,
     tilePadding: Dp,
     tileSpacer: Dp,
+    labelFontSize: TextUnit,
     modifier: Modifier,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
@@ -309,7 +347,7 @@ private fun AppTile(
                 .padding(tilePadding)
         ) {
             val bmp = remember(app.packageName) {
-                try { app.icon.toBitmap(128, 128) } catch (_: Exception) { null }
+                try { app.icon.toBitmap(192, 192) } catch (_: Exception) { null }
             }
             if (bmp != null) {
                 androidx.compose.foundation.Image(
@@ -327,10 +365,12 @@ private fun AppTile(
                 text       = if (isHidden) stringResource(R.string.drawer_hidden_suffix, app.appName) else app.appName,
                 color      = colors.textPrimary,
                 maxLines   = 1,
+                softWrap   = false,
                 overflow   = TextOverflow.Ellipsis,
                 textAlign  = TextAlign.Center,
-                fontSize   = if (iconSize < 46.dp) 12.sp else 13.sp,
-                fontWeight = FontWeight.Medium
+                fontSize   = labelFontSize,
+                fontWeight = FontWeight.Medium,
+                modifier   = Modifier.fillMaxWidth()
             )
         }
 

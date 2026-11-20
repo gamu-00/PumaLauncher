@@ -19,6 +19,7 @@ import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NavDestination
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.service.MediaNotificationListenerService
+import com.openlauncher.app.ui.screen.NavigationEngine
 import com.openlauncher.app.ui.screen.launchInFullscreen
 import com.openlauncher.app.util.LocationCompassManager
 import com.openlauncher.app.util.SunriseSunset
@@ -32,6 +33,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val settingsRepo = SettingsRepository(application)
     private val locationMgr = LocationCompassManager(application)
+    val navigationEngine = NavigationEngine(application)
 
     // ── Settings ──────────────────────────────────────────────────────────────
     private val _settingsLoaded = MutableStateFlow(false)
@@ -248,6 +250,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     override fun onCleared() {
         super.onCleared()
         locationMgr.stop()
+        navigationEngine.shutdown()
     }
 
     init {

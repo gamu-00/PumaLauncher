@@ -9,6 +9,7 @@ import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -17,6 +18,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -62,8 +66,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.openlauncher.app.R
+import com.openlauncher.app.data.WeatherData
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.service.MediaNotificationListenerService
+import com.openlauncher.app.ui.components.CockpitWeatherCard
 import com.openlauncher.app.ui.theme.LocalCockpitColors
 import com.openlauncher.app.ui.theme.MediaMusicAccent
 import kotlinx.coroutines.Dispatchers
@@ -105,19 +111,24 @@ private data class MusicPickerApp(
 )
 
 /**
- * Generic live music card backed by [MediaNotificationListenerService] / MediaSessionManager.
- * - Active session (`activeController != null`): shows track title, artist, album art, and
+ * Generic live music card backed by [MediaNotificationListenerService] / MediaSessionManager,
+ * with contextual [CockpitWeatherCard] display when triggered during active video playback.
+ * - Active session (`hasActiveMedia == true`): shows track title, artist, album art, and
  *   isolated Previous / Play-Pause / Next buttons; tapping outside controls opens the playing app.
- * - Idle (`activeController == null`): shows a minimal clean surface with zero banners or extra
- *   buttons; tapping opens Notification Listener settings if disabled, else launches the saved
- *   preferred music app (or opens the app selector on first tap). Long-press always opens the
- *   app selector to change the preferred music app.
+ * - Idle (`!hasActiveMedia` or blank title): shows a minimal clean music surface; tapping opens
+ *   Notification Listener settings if disabled, else launches the saved preferred music app
+ *   (or opens the app selector on first tap). Long-press always opens the preferred music app picker.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NowPlayingWidget(
     state: NowPlayingState?,
     accent: Color,
+    showWeather: Boolean = false,
+    weather: WeatherData? = null,
+    isWeatherLoading: Boolean = false,
+    onRefreshWeather: () -> Unit = {},
+    onDismissWeather: () -> Unit = {},
     isCompactHeight: Boolean = false,
     homePressTrigger: Int = 0,
     modifier: Modifier = Modifier
@@ -152,36 +163,58 @@ fun NowPlayingWidget(
     }
 
     val activeController = state?.controller
+    val hasActiveMedia = activeController != null && state.title.isNotBlank()
     val colors = LocalCockpitColors.current
     val onAccentColor = if (accent.luminance() > 0.5f) Color.Black else Color.White
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .combinedClickable(
-                onClick = {
-                    if (activeController != null) {
-                        launchAppByPackage(context, activeController.packageName)
-                    } else if (!MediaNotificationListenerService.isNotificationListenerEnabled(context)) {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            )
-                        }
-                    } else {
-                        val savedPkg = readPreferredMusicPackage(context)
-                        preferredPackage = savedPkg
-                        if (savedPkg.isEmpty() || !launchAppByPackage(context, savedPkg)) {
-                            showAppPicker = true
-                        }
-                    }
-                },
-                onLongClick = { showAppPicker = true }
+    AnimatedContent(
+        targetState = showWeather,
+        transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(200)) },
+        label = "nowPlayingMode",
+        modifier = modifier.fillMaxSize()
+    ) { showingWeather ->
+        if (showingWeather) {
+            CockpitWeatherCard(
+                weather = weather,
+                isLoading = isWeatherLoading,
+                accent = accent,
+                returnIcon = Icons.Default.MusicNote,
+                returnLabel = stringResource(R.string.weather_return_music),
+                returnContentDescription = stringResource(R.string.weather_return_music_desc),
+                onReturnClick = onDismissWeather,
+                onRefreshClick = onRefreshWeather,
+                onLongClick = { showAppPicker = true },
+                isCompactHeight = isCompactHeight,
+                modifier = Modifier.fillMaxSize()
             )
-    ) {
-        if (activeController != null) {
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .combinedClickable(
+                        onClick = {
+                            if (hasActiveMedia) {
+                                launchAppByPackage(context, activeController.packageName)
+                            } else if (!MediaNotificationListenerService.isNotificationListenerEnabled(context)) {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                }
+                            } else {
+                                val savedPkg = readPreferredMusicPackage(context)
+                                preferredPackage = savedPkg
+                                if (savedPkg.isEmpty() || !launchAppByPackage(context, savedPkg)) {
+                                    showAppPicker = true
+                                }
+                            }
+                        },
+                        onLongClick = { showAppPicker = true }
+                    )
+            ) {
+                if (hasActiveMedia) {
             var playbackProgress by remember(activeController, state.title, state.artist) {
                 mutableFloatStateOf(readControllerProgress(activeController))
             }
@@ -404,56 +437,58 @@ fun NowPlayingWidget(
                     }
                 }
             }
-        } else {
-            val defaultMusicTitle = stringResource(R.string.music_title)
-            val idleLabel = remember(preferredPackage, context, defaultMusicTitle) {
-                if (preferredPackage.isBlank()) {
-                    defaultMusicTitle
                 } else {
-                    runCatching {
-                        val pm = context.packageManager
-                        pm.getApplicationLabel(pm.getApplicationInfo(preferredPackage, 0)).toString()
-                    }.getOrNull()?.takeIf { it.isNotBlank() } ?: defaultMusicTitle
-                }
-            }
+                    val defaultMusicTitle = stringResource(R.string.music_title)
+                    val idleLabel = remember(preferredPackage, context, defaultMusicTitle) {
+                        if (preferredPackage.isBlank()) {
+                            defaultMusicTitle
+                        } else {
+                            runCatching {
+                                val pm = context.packageManager
+                                pm.getApplicationLabel(pm.getApplicationInfo(preferredPackage, 0)).toString()
+                            }.getOrNull()?.takeIf { it.isNotBlank() } ?: defaultMusicTitle
+                        }
+                    }
 
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                val compactIdle = isCompactHeight || maxHeight < 160.dp
-                val iconSize = if (maxHeight < 130.dp) 44.dp else 52.dp
-                val labelSize = if (compactIdle) 13.sp else 15.sp
-                val subtitleSize = if (compactIdle) 11.sp else 12.sp
-                val iconSpacer = if (compactIdle) 8.dp else 10.dp
+                    BoxWithConstraints(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val compactIdle = isCompactHeight || maxHeight < 160.dp
+                        val iconSize = if (maxHeight < 130.dp) 44.dp else 52.dp
+                        val labelSize = if (compactIdle) 13.sp else 15.sp
+                        val subtitleSize = if (compactIdle) 11.sp else 12.sp
+                        val iconSpacer = if (compactIdle) 8.dp else 10.dp
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_dashboard_music),
-                        contentDescription = null,
-                        modifier = Modifier.size(iconSize)
-                    )
-                    Spacer(Modifier.height(iconSpacer))
-                    Text(
-                        text = idleLabel,
-                        color = colors.textPrimary,
-                        fontSize = labelSize,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = stringResource(R.string.music_idle_subtitle),
-                        color = colors.textSecondary,
-                        fontSize = subtitleSize,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_dashboard_music),
+                                contentDescription = null,
+                                modifier = Modifier.size(iconSize)
+                            )
+                            Spacer(Modifier.height(iconSpacer))
+                            Text(
+                                text = idleLabel,
+                                color = colors.textPrimary,
+                                fontSize = labelSize,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.music_idle_subtitle),
+                                color = colors.textSecondary,
+                                fontSize = subtitleSize,
+                                fontWeight = FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
         }

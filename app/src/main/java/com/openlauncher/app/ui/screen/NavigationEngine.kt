@@ -4,10 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.os.Bundle
-import android.os.Looper
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -18,14 +14,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.openlauncher.app.R
 import com.openlauncher.app.util.AppLanguageManager
+import com.openlauncher.app.util.FilteredGpsLocationEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -203,8 +194,6 @@ class NavigationEngine(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private var fusedClient: FusedLocationProviderClient? = null
-    private var locationManager: LocationManager? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var searchJob: Job? = null
@@ -227,6 +216,8 @@ class NavigationEngine(context: Context) {
         private set
     var hasGpsFix by mutableStateOf(false)
         private set
+    var isMoving by mutableStateOf(false)
+        private set
     var currentBearing by mutableFloatStateOf(0f)
         private set
     var isFollowingGps by mutableStateOf(true)
@@ -241,6 +232,10 @@ class NavigationEngine(context: Context) {
 
     // Active Turn-by-Turn route state
     var activeRoute by mutableStateOf<ValhallaRoute?>(null)
+        private set
+    var traveledRoutePoints by mutableStateOf<List<LatLng>>(emptyList())
+        private set
+    var remainingRoutePoints by mutableStateOf<List<LatLng>>(emptyList())
         private set
     var isRouting by mutableStateOf(false)
         private set
@@ -262,32 +257,16 @@ class NavigationEngine(context: Context) {
     var etaText by mutableStateOf("")
         private set
 
-    private var lastGpsLocation: Location? = null
     private var lastRouteCalcElapsedMs: Long = 0L
     private var announced300ForManeuver: Int = -1
     private var announced50ForManeuver: Int = -1
     private var isStarted = false
 
-    private val fusedCallback = object : LocationCallback() {
-        override fun onLocationResult(result: LocationResult) {
-            val location = result.lastLocation ?: return
-            val rawKmh = if (location.hasSpeed()) (location.speed * 3.6f).roundToInt() else 0
-            _currentSpeedKmh.value = if (rawKmh < 2) 0 else rawKmh
-            onNewLocation(location)
-        }
-    }
-
-    private val platformLocationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location) {
-            val rawKmh = if (location.hasSpeed()) (location.speed * 3.6f).roundToInt() else 0
-            _currentSpeedKmh.value = if (rawKmh < 2) 0 else rawKmh
-            onNewLocation(location)
-        }
-        @Deprecated("Deprecated in Java")
-        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-        override fun onProviderEnabled(provider: String) {}
-        override fun onProviderDisabled(provider: String) {}
-    }
+    val locationEngine: FilteredGpsLocationEngine = FilteredGpsLocationEngine(
+        context = appContext,
+        routePointsProvider = { activeRoute?.shapePoints },
+        onFilteredLocation = { loc -> onNewLocation(loc) }
+    )
 
     init {
         initTts()
@@ -354,61 +333,17 @@ class NavigationEngine(context: Context) {
         if (!hasLocationPermission()) return
         if (isStarted) return
         isStarted = true
-
-        // 1. Primary: FusedLocationProviderClient every 1000ms
-        runCatching {
-            val client = LocationServices.getFusedLocationProviderClient(appContext)
-            fusedClient = client
-            client.lastLocation.addOnSuccessListener { loc ->
-                if (loc != null) onNewLocation(loc)
-            }
-            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
-                .setMinUpdateIntervalMillis(500L)
-                .setWaitForAccurateLocation(false)
-                .build()
-            client.requestLocationUpdates(request, fusedCallback, Looper.getMainLooper())
-            Log.d(NAV_TAG, "FusedLocationProviderClient avviato (1000ms)")
-        }.onFailure { e ->
-            Log.d(NAV_TAG, "FusedLocationProviderClient non disponibile: ${e.message}")
-        }
-
-        // 2. Fallback: Android LocationManager (1000ms) for AOSP head units
-        runCatching {
-            val lm = appContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            locationManager = lm
-            if (lm.allProviders.contains(LocationManager.GPS_PROVIDER)) {
-                lm.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    1000L,
-                    0f,
-                    platformLocationListener,
-                    Looper.getMainLooper()
-                )
-                lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { onNewLocation(it) }
-            }
-            if (lm.allProviders.contains(LocationManager.NETWORK_PROVIDER)) {
-                lm.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    2000L,
-                    0f,
-                    platformLocationListener,
-                    Looper.getMainLooper()
-                )
-                if (!hasGpsFix) {
-                    lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)?.let { onNewLocation(it) }
-                }
-            }
-        }
+        locationEngine.setEngineTrackingActive(true)
     }
 
     fun stopLocationTracking() {
         isStarted = false
-        runCatching { fusedClient?.removeLocationUpdates(fusedCallback) }
-        runCatching { locationManager?.removeUpdates(platformLocationListener) }
+        locationEngine.setEngineTrackingActive(false)
     }
 
     fun shutdown() {
         stopLocationTracking()
+        locationEngine.release()
         searchJob?.cancel()
         routeJob?.cancel()
         runCatching {
@@ -418,23 +353,17 @@ class NavigationEngine(context: Context) {
     }
 
     private fun onNewLocation(loc: Location) {
-        val rawKmh = if (loc.hasSpeed()) (loc.speed * 3.6f).roundToInt() else 0
+        val speedMps = if (loc.hasSpeed()) loc.speed.coerceAtLeast(0f) else 0f
+        val rawKmh = (speedMps * 3.6f).roundToInt()
         _currentSpeedKmh.value = if (rawKmh < 2) 0 else rawKmh
+        isMoving = speedMps >= 0.5f
 
         currentLat = loc.latitude
         currentLon = loc.longitude
         hasGpsFix = true
 
-        if (loc.hasBearing() && loc.bearing != 0f) {
-            currentBearing = (loc.bearing + 360f) % 360f
-        } else {
-            val prev = lastGpsLocation
-            if (prev != null && prev.distanceTo(loc) > 2.0f) {
-                currentBearing = (prev.bearingTo(loc) + 360f) % 360f
-                lastGpsLocation = loc
-            } else if (prev == null) {
-                lastGpsLocation = loc
-            }
+        if (loc.hasBearing()) {
+            currentBearing = ((loc.bearing % 360f) + 360f) % 360f
         }
 
         val route = activeRoute
@@ -718,6 +647,8 @@ class NavigationEngine(context: Context) {
         routeJob?.cancel()
         isRouting = false
         activeRoute = null
+        traveledRoutePoints = emptyList()
+        remainingRoutePoints = emptyList()
         routeError = null
         currentManeuverIndex = 0
         nextTurnInstruction = ""
@@ -1011,17 +942,29 @@ class NavigationEngine(context: Context) {
                 closestIndex = i
             }
         }
-        val segStart = (closestIndex - 2).coerceAtLeast(0)
-        val segEnd = (closestIndex + 2).coerceAtMost(pts.lastIndex - 1)
-        for (i in segStart..segEnd) {
-            val segDist = pointToSegmentMeters(
-                lat, lon,
-                pts[i].latitude, pts[i].longitude,
-                pts[i + 1].latitude, pts[i + 1].longitude
-            )
-            if (segDist < minDistMeters) {
-                minDistMeters = segDist
+        var closestSegIdx = closestIndex.coerceIn(0, (pts.lastIndex - 1).coerceAtLeast(0))
+        var projectedPoint = pts[closestSegIdx]
+        if (pts.size >= 2) {
+            minDistMeters = Double.MAX_VALUE
+            val segStart = (closestIndex - 2).coerceAtLeast(0)
+            val segEnd = (closestIndex + 2).coerceAtMost(pts.lastIndex - 1)
+            for (i in segStart..segEnd) {
+                val (proj, segDist) = projectPointOntoSegment(
+                    lat, lon,
+                    pts[i].latitude, pts[i].longitude,
+                    pts[i + 1].latitude, pts[i + 1].longitude
+                )
+                if (segDist < minDistMeters) {
+                    minDistMeters = segDist
+                    closestSegIdx = i
+                    projectedPoint = proj
+                }
             }
+            traveledRoutePoints = pts.subList(0, closestSegIdx + 1) + projectedPoint
+            remainingRoutePoints = listOf(projectedPoint) + pts.subList(closestSegIdx + 1, pts.size)
+        } else {
+            traveledRoutePoints = emptyList()
+            remainingRoutePoints = pts
         }
 
         // Align bearing with route segment if navigating and user is on route
@@ -1031,7 +974,7 @@ class NavigationEngine(context: Context) {
             val segLen = haversineMeters(p1.latitude, p1.longitude, p2.latitude, p2.longitude)
             if (segLen > 1.0) {
                 val routeBrg = bearingDegrees(p1.latitude, p1.longitude, p2.latitude, p2.longitude)
-                if (!hasGpsFix || lastGpsLocation == null) {
+                if (!hasGpsFix) {
                     currentBearing = routeBrg
                 }
             }
@@ -1138,12 +1081,12 @@ class NavigationEngine(context: Context) {
         return r * c
     }
 
-    private fun pointToSegmentMeters(
+    private fun projectPointOntoSegment(
         pLat: Double, pLon: Double,
         aLat: Double, aLon: Double,
         bLat: Double, bLon: Double
-    ): Double {
-        val cosLat = cos(Math.toRadians(pLat))
+    ): Pair<LatLng, Double> {
+        val cosLat = cos(Math.toRadians(pLat)).coerceAtLeast(1e-6)
         val px = pLon * cosLat
         val py = pLat
         val ax = aLon * cosLat
@@ -1158,8 +1101,14 @@ class NavigationEngine(context: Context) {
         } else 0.0
         val projLon = (ax + t * dx) / cosLat
         val projLat = ay + t * dy
-        return haversineMeters(pLat, pLon, projLat, projLon)
+        return LatLng(projLat, projLon) to haversineMeters(pLat, pLon, projLat, projLon)
     }
+
+    private fun pointToSegmentMeters(
+        pLat: Double, pLon: Double,
+        aLat: Double, aLon: Double,
+        bLat: Double, bLon: Double
+    ): Double = projectPointOntoSegment(pLat, pLon, aLat, aLon, bLat, bLon).second
 
     private fun bearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
         val phi1 = Math.toRadians(lat1)

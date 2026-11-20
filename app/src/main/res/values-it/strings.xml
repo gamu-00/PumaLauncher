@@ -105,6 +105,7 @@
     <string name="nav_network_error">Errore rete</string>
     <string name="nav_route_error">Impossibile calcolare il percorso</string>
     <string name="nav_recenter">Ricentra</string>
+    <string name="nav_compass_reset">Ripristina Nord in alto</string>
     <string name="nav_mute_voice">Disattiva voce guida</string>
     <string name="nav_unmute_voice">Attiva voce guida</string>
     <string name="nav_end">Termina</string>
@@ -312,4 +313,28 @@
     <string name="youtube_loading_stream">Caricamento video...</string>
     <string name="youtube_video_unplayable">Video non riproducibile</string>
     <string name="youtube_back_to_youtube">Torna a YouTube</string>
+
+    <!-- Weather Widget -->
+    <string name="weather_title">Meteo</string>
+    <string name="weather_clear">Sereno</string>
+    <string name="weather_partly_cloudy">Parzialmente nuvoloso</string>
+    <string name="weather_cloudy">Nuvoloso</string>
+    <string name="weather_fog">Nebbia</string>
+    <string name="weather_rain">Pioggia</string>
+    <string name="weather_thunderstorm">Temporale</string>
+    <string name="weather_snow">Neve</string>
+    <string name="weather_feels_like">Percepita %1$d°</string>
+    <string name="weather_wind_kmh">%1$d km/h</string>
+    <string name="weather_loading">Aggiornamento meteo...</string>
+    <string name="weather_tap_refresh">Tocca per aggiornare</string>
+    <string name="weather_return_music">Musica</string>
+    <string name="weather_return_media">Media</string>
+    <string name="weather_return_music_desc">Torna al player musicale</string>
+    <string name="weather_return_media_desc">Torna all\'hub video</string>
+
+    <!-- Media Station Settings -->
+    <string name="settings_section_media_station">Media Station</string>
+    <string name="settings_media_pause_timeout">Timeout pausa multimediale</string>
+    <string name="settings_media_pause_timeout_desc">Mantieni video in pausa e meteo attivi prima del ripristino</string>
+    <string name="settings_minutes_value">%1$d min</string>
 </resources>
