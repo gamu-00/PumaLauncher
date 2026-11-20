@@ -13,7 +13,8 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 
 ---
 
-<img width="809" height="545" alt="Screenshot 2026-11-19 233607" src="https://github.com/user-attachments/assets/75c41293-62ac-485e-aaed-25fb8329ec01" />
+<img width="786" height="527" alt="Screenshot 2026-11-20 213614" src="https://github.com/user-attachments/assets/c4bc0325-5560-46bb-85de-7f8e04bd2077" />
+
 
 
 ## Key Features
@@ -37,7 +38,8 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 - **Strict Audio Focus Discipline**
   - `ExoPlayer` is instantiated on demand and immediately releases Audio Focus (`abandonAudioFocusRequest` + `player.release()`) when paused, closed, or backgrounded, preventing audio conflicts with navigation voice prompts or external radio/music apps.
 
-<img width="809" height="542" alt="Screenshot 2026-11-19 233943" src="https://github.com/user-attachments/assets/c33e584f-72ae-4fe0-b9cc-53e0e63b73be" />
+<img width="1024" height="711" alt="5775d92c-0e77-42d7-bbbd-9e68c791369f" src="https://github.com/user-attachments/assets/b4889cae-70b6-4272-9106-4b67368ba446" />
+
 
 
 ---
