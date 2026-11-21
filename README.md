@@ -67,7 +67,8 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
 - **Media & Stream Extraction:** AndroidX Media3 (`ExoPlayer`, `MergingMediaSource`, FFmpeg extension), `NewPipeExtractor`
 - **Networking & Serialization:** OkHttp, Gson
 
-<img width="810" height="541" alt="Screenshot 2026-11-19 234019" src="https://github.com/user-attachments/assets/2ed9c107-4e9f-4ec5-8282-9e45c869a9dd" />
+<img width="807" height="541" alt="Screenshot 2026-11-21 010422" src="https://github.com/user-attachments/assets/4d2ee610-0cc0-41f3-b667-1e430b0a263b" />
+
 
 ---
 
