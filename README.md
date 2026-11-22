@@ -9,7 +9,7 @@
 
 Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes, scaling across 6" to 16" displays). It combines split-screen pure-GNSS navigation, an ad-free hybrid YouTube player, contextual live weather, and a unified media station inside a distraction-reduced cockpit UI.
 
-> **Current Release:** `v0.1.2` — Signed release build introducing a high-contrast Tesla/Apple Maps automotive vector map style (Day/Night with road shields & 3D driving perspective), interactive 3-route preview on Valhalla (Fastest, Alternative, Scenic), full 9-language localization (adding Polish, Russian, and Ukrainian), and a compact automotive language dropdown selector.
+> **Current Release:** `v0.1.3` — Signed release build introducing a Google Maps style automotive vector map style (Day/Night with road shields & 3D driving perspective), interactive 3-route preview on Valhalla (Fastest, Alternative, Scenic), full 9-language localization (adding Polish, Russian, and Ukrainian), and a compact automotive language dropdown selector.
 
 ---
 
