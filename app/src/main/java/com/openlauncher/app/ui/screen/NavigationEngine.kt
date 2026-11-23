@@ -18,6 +18,8 @@ import androidx.core.content.ContextCompat
 import com.openlauncher.app.R
 import com.openlauncher.app.util.AppLanguageManager
 import com.openlauncher.app.util.FilteredGpsLocationEngine
+import com.openlauncher.app.util.SharedHttpClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,19 +30,24 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.geometry.LatLng
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.IOException
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -49,7 +56,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 private const val NAV_TAG = "PumaNav"
-private const val HTTP_USER_AGENT = "PumaLauncher/1.0 (Android)"
+private const val HTTP_USER_AGENT = "PumaLauncher/0.1 (Android Automotive)"
+private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
 @Keep
 data class PhotonPlace(
@@ -80,11 +88,13 @@ data class ValhallaManeuver(
     val type: Int,
     val instruction: String,
     val streetName: String,
+    val roadBadges: List<String> = emptyList(),
     val lengthKm: Double,
     val timeSec: Double,
     val beginShapeIndex: Int,
     val endShapeIndex: Int,
-    val turnIcon: TurnIconType
+    val turnIcon: TurnIconType,
+    val roundaboutExitAngle: Float = 0f
 )
 
 @Keep
@@ -94,7 +104,8 @@ data class ValhallaRoute(
     val totalLengthKm: Double,
     val totalTimeSec: Double,
     val destination: PhotonPlace,
-    val hasToll: Boolean = false
+    val hasToll: Boolean = false,
+    val speedLimitsKmh: IntArray = IntArray(0)
 )
 
 @Keep
@@ -116,101 +127,6 @@ private data class GeocodingOutcome(
     val networkError: Boolean
 )
 
-/**
- * Decodes encoded polyline6 geometry (precision 1e6, NOT 1e5).
- */
-fun decodePolyline6(encoded: String): List<LatLng> {
-    val poly = ArrayList<LatLng>()
-    var index = 0
-    val len = encoded.length
-    var lat = 0
-    var lng = 0
-
-    while (index < len) {
-        var b: Int
-        var shift = 0
-        var result = 0
-        do {
-            b = encoded[index++].code - 63
-            result = result or ((b and 0x1f) shl shift)
-            shift += 5
-        } while (b >= 0x20 && index < len)
-        val dlat = if ((result and 1) != 0) (result shr 1).inv() else (result shr 1)
-        lat += dlat
-
-        shift = 0
-        result = 0
-        do {
-            if (index >= len) break
-            b = encoded[index++].code - 63
-            result = result or ((b and 0x1f) shl shift)
-            shift += 5
-        } while (b >= 0x20 && index < len)
-        val dlng = if ((result and 1) != 0) (result shr 1).inv() else (result shr 1)
-        lng += dlng
-
-        poly.add(LatLng(lat / 1e6, lng / 1e6))
-    }
-    return poly
-}
-
-private fun mapValhallaManeuverIcon(type: Int, instruction: String): TurnIconType {
-    return when (type) {
-        4, 5, 6 -> TurnIconType.DESTINATION
-        9, 18, 20, 23 -> TurnIconType.SLIGHT_RIGHT
-        10 -> TurnIconType.RIGHT
-        11 -> TurnIconType.SHARP_RIGHT
-        12, 13 -> TurnIconType.UTURN
-        14 -> TurnIconType.SHARP_LEFT
-        15 -> TurnIconType.LEFT
-        16, 19, 21, 24 -> TurnIconType.SLIGHT_LEFT
-        26, 27 -> TurnIconType.ROUNDABOUT
-        else -> {
-            val lower = instruction.lowercase(Locale.ITALIAN)
-            when {
-                "rotonda" in lower || "rotatoria" in lower -> TurnIconType.ROUNDABOUT
-                "inversione" in lower -> TurnIconType.UTURN
-                "destinazione" in lower || "arrivato" in lower -> TurnIconType.DESTINATION
-                "leggermente a sinistra" in lower || "tieni la sinistra" in lower -> TurnIconType.SLIGHT_LEFT
-                "leggermente a destra" in lower || "tieni la destra" in lower -> TurnIconType.SLIGHT_RIGHT
-                "sinistra" in lower -> TurnIconType.LEFT
-                "destra" in lower -> TurnIconType.RIGHT
-                else -> TurnIconType.STRAIGHT
-            }
-        }
-    }
-}
-
-private fun mapOsrmManeuver(
-    context: Context,
-    type: String,
-    modifier: String,
-    street: String
-): Pair<TurnIconType, String> {
-    fun loc(resId: Int, streetResId: Int): String = if (street.isNotBlank()) {
-        AppLanguageManager.localizedString(context, streetResId, street)
-    } else {
-        AppLanguageManager.localizedString(context, resId)
-    }
-
-    return when (type.lowercase(Locale.ROOT)) {
-        "arrive" -> TurnIconType.DESTINATION to AppLanguageManager.localizedString(context, R.string.nav_maneuver_arrive)
-        "depart" -> TurnIconType.STRAIGHT to loc(R.string.nav_maneuver_depart, R.string.nav_maneuver_depart_street)
-        "roundabout", "rotary", "roundabout turn" ->
-            TurnIconType.ROUNDABOUT to loc(R.string.nav_maneuver_roundabout, R.string.nav_maneuver_roundabout_street)
-        else -> when (modifier.lowercase(Locale.ROOT)) {
-            "uturn" -> TurnIconType.UTURN to loc(R.string.nav_maneuver_uturn, R.string.nav_maneuver_uturn_street)
-            "sharp left" -> TurnIconType.SHARP_LEFT to loc(R.string.nav_maneuver_sharp_left, R.string.nav_maneuver_sharp_left_street)
-            "left" -> TurnIconType.LEFT to loc(R.string.nav_maneuver_left, R.string.nav_maneuver_left_street)
-            "slight left" -> TurnIconType.SLIGHT_LEFT to loc(R.string.nav_maneuver_slight_left, R.string.nav_maneuver_slight_left_street)
-            "sharp right" -> TurnIconType.SHARP_RIGHT to loc(R.string.nav_maneuver_sharp_right, R.string.nav_maneuver_sharp_right_street)
-            "right" -> TurnIconType.RIGHT to loc(R.string.nav_maneuver_right, R.string.nav_maneuver_right_street)
-            "slight right" -> TurnIconType.SLIGHT_RIGHT to loc(R.string.nav_maneuver_slight_right, R.string.nav_maneuver_slight_right_street)
-            else -> TurnIconType.STRAIGHT to loc(R.string.nav_maneuver_continue, R.string.nav_maneuver_continue_street)
-        }
-    }
-}
-
 class NavigationEngine(context: Context) {
 
     private val appContext = context.applicationContext
@@ -220,11 +136,27 @@ class NavigationEngine(context: Context) {
     private var ttsReady = false
     private var searchJob: Job? = null
     private var routeJob: Job? = null
+    private var reverseGeocodeJob: Job? = null
+    private var speedLimitJob: Job? = null
 
-    // Persistent preferences mirrored into engine
+    // Persistent preferences & Valhalla costing options mirrored into engine
     var avoidTolls by mutableStateOf(false)
         private set
+    var avoidHighways by mutableStateOf(false)
+        private set
+    var preferScenicRoute by mutableStateOf(false)
+        private set
+    var avoidFerries by mutableStateOf(false)
+        private set
     var voiceGuidanceEnabled by mutableStateOf(true)
+        private set
+
+    val hasActiveRouteOptions: Boolean
+        get() = avoidTolls || avoidHighways || preferScenicRoute || avoidFerries
+
+    var currentPlaceLabel by mutableStateOf(
+        AppLanguageManager.localizedString(appContext, R.string.nav_current_position)
+    )
         private set
 
     // Live GPS speed in km/h (0 when < 2 km/h to avoid stationary jitter)
@@ -261,6 +193,8 @@ class NavigationEngine(context: Context) {
         private set
     var selectedPreviewIndex by mutableIntStateOf(0)
         private set
+    var waypoints by mutableStateOf<List<PhotonPlace>>(emptyList())
+        private set
 
     // Active Turn-by-Turn route state
     var activeRoute by mutableStateOf<ValhallaRoute?>(null)
@@ -280,16 +214,30 @@ class NavigationEngine(context: Context) {
         private set
     var nextTurnStreet by mutableStateOf("")
         private set
+    var nextTurnRoadBadges by mutableStateOf<List<String>>(emptyList())
+        private set
     var nextTurnIcon by mutableStateOf(TurnIconType.STRAIGHT)
+        private set
+    var nextTurnRoundaboutExitAngle by mutableFloatStateOf(0f)
         private set
     var nextTurnDistanceText by mutableStateOf("")
         private set
+    var currentSpeedLimitKmh by mutableIntStateOf(-1)
+        private set
     var remainingDistanceText by mutableStateOf("")
+        private set
+    var remainingDurationText by mutableStateOf("")
+        private set
+    var arrivalTimeText by mutableStateOf("")
         private set
     var etaText by mutableStateOf("")
         private set
 
+    private var lastClosestSegIdx: Int = 0
     private var lastRouteCalcElapsedMs: Long = 0L
+    private var lastReverseGeocodeElapsedMs: Long = 0L
+    private var lastReverseGeocodeLat: Double = Double.NaN
+    private var lastReverseGeocodeLon: Double = Double.NaN
     private var announced300ForManeuver: Int = -1
     private var announced50ForManeuver: Int = -1
     private var isStarted = false
@@ -342,11 +290,49 @@ class NavigationEngine(context: Context) {
         val changed = avoidTolls != enabled
         avoidTolls = enabled
         if (changed && recalculateIfActive) {
-            val currentDest = activeRoute?.destination
-            if (currentDest != null) {
-                Log.d(NAV_TAG, "Cambio opzione avoidTolls=$enabled con destinazione attiva: ricalcolo immediato percorso")
-                calculateRoute(currentDest, avoidTolls = enabled, isRecalculation = false)
-            }
+            Log.d(NAV_TAG, "Cambio opzione avoidTolls=$enabled")
+            recalculateForOptionsChange()
+        }
+    }
+
+    fun updateAvoidHighways(enabled: Boolean, recalculateIfActive: Boolean = true) {
+        val changed = avoidHighways != enabled
+        avoidHighways = enabled
+        if (changed && recalculateIfActive) {
+            Log.d(NAV_TAG, "Cambio opzione avoidHighways=$enabled")
+            recalculateForOptionsChange()
+        }
+    }
+
+    fun updatePreferScenicRoute(enabled: Boolean, recalculateIfActive: Boolean = true) {
+        val changed = preferScenicRoute != enabled
+        preferScenicRoute = enabled
+        if (changed && recalculateIfActive) {
+            Log.d(NAV_TAG, "Cambio opzione preferScenicRoute=$enabled")
+            recalculateForOptionsChange()
+        }
+    }
+
+    fun updateAvoidFerries(enabled: Boolean, recalculateIfActive: Boolean = true) {
+        val changed = avoidFerries != enabled
+        avoidFerries = enabled
+        if (changed && recalculateIfActive) {
+            Log.d(NAV_TAG, "Cambio opzione avoidFerries=$enabled")
+            recalculateForOptionsChange()
+        }
+    }
+
+    private fun recalculateForOptionsChange() {
+        val previewDest = previewDestination
+        val activeDest = activeRoute?.destination
+        when {
+            isRoutePreview && previewDest != null -> loadRoutePreview(previewDest, waypoints)
+            activeDest != null -> calculateRoute(
+                destination = activeDest,
+                avoidTolls = avoidTolls,
+                isRecalculation = false,
+                intermediateWaypoints = waypoints
+            )
         }
     }
 
@@ -388,6 +374,8 @@ class NavigationEngine(context: Context) {
         locationEngine.release()
         searchJob?.cancel()
         routeJob?.cancel()
+        reverseGeocodeJob?.cancel()
+        speedLimitJob?.cancel()
         runCatching {
             tts?.stop()
             tts?.shutdown()
@@ -411,7 +399,112 @@ class NavigationEngine(context: Context) {
         val route = activeRoute
         if (route != null) {
             updateNavigationProgress(loc.latitude, loc.longitude, route)
+        } else {
+            maybeRefreshCurrentPlaceLabel(loc.latitude, loc.longitude)
         }
+    }
+
+    private fun maybeRefreshCurrentPlaceLabel(lat: Double, lon: Double) {
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val firstLookup = lastReverseGeocodeElapsedMs == 0L
+        val elapsedOk = nowElapsed - lastReverseGeocodeElapsedMs >= 20_000L
+        val movedEnough = lastReverseGeocodeLat.isNaN() ||
+            lastReverseGeocodeLon.isNaN() ||
+            haversineMeters(lastReverseGeocodeLat, lastReverseGeocodeLon, lat, lon) > 40.0
+        if (!firstLookup && (!elapsedOk || !movedEnough)) return
+
+        lastReverseGeocodeElapsedMs = nowElapsed
+        lastReverseGeocodeLat = lat
+        lastReverseGeocodeLon = lon
+        reverseGeocodeJob?.cancel()
+        reverseGeocodeJob = scope.launch {
+            val label = withContext(Dispatchers.IO) {
+                fetchReversePlaceLabel(lat, lon)
+            }
+            if (!label.isNullOrBlank()) {
+                currentPlaceLabel = label
+            }
+        }
+    }
+
+    private suspend fun fetchReversePlaceLabel(lat: Double, lon: Double): String? {
+        val lang = AppLanguageManager.getSavedLanguage(appContext)
+        val photonLang = if (lang in setOf("en", "de", "fr", "it")) lang else "en"
+        val photonLabel = runCatching {
+            val urlStr = String.format(
+                Locale.US,
+                "https://photon.komoot.io/reverse?lon=%.6f&lat=%.6f&lang=%s",
+                lon,
+                lat,
+                photonLang
+            )
+            val request = Request.Builder()
+                .url(urlStr)
+                .get()
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+            val (code, body) = executeHttpRequest(request)
+            if (code !in 200..299 || body.isBlank()) return@runCatching null
+            val props = JSONObject(body)
+                .optJSONArray("features")
+                ?.optJSONObject(0)
+                ?.optJSONObject("properties")
+                ?: return@runCatching null
+            val street = props.optString("street", "").trim()
+            val name = props.optString("name", "").trim()
+            val locality = props.optString("city", "")
+                .ifBlank { props.optString("town", "") }
+                .ifBlank { props.optString("village", "") }
+                .ifBlank { props.optString("suburb", "") }
+                .ifBlank { props.optString("district", "") }
+                .trim()
+            val primary = street.ifBlank { name }.ifBlank { locality }
+            when {
+                primary.isNotBlank() && locality.isNotBlank() && primary != locality -> "$primary, $locality"
+                primary.isNotBlank() -> primary
+                else -> null
+            }
+        }.getOrNull()
+
+        if (!photonLabel.isNullOrBlank()) return photonLabel
+
+        return runCatching {
+            val urlStr = String.format(
+                Locale.US,
+                "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=%.6f&lon=%.6f&accept-language=%s",
+                lat,
+                lon,
+                lang
+            )
+            val request = Request.Builder()
+                .url(urlStr)
+                .get()
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+            val (code, body) = executeHttpRequest(request)
+            if (code !in 200..299 || body.isBlank()) return@runCatching null
+            val root = JSONObject(body)
+            val addr = root.optJSONObject("address")
+            val road = addr?.optString("road", "")
+                ?.ifBlank { addr.optString("pedestrian", "") }
+                ?.trim()
+                .orEmpty()
+            val locality = addr?.optString("city", "")
+                ?.ifBlank { addr.optString("town", "") }
+                ?.ifBlank { addr.optString("village", "") }
+                ?.ifBlank { addr.optString("suburb", "") }
+                ?.ifBlank { addr.optString("municipality", "") }
+                ?.trim()
+                .orEmpty()
+            val primary = road.ifBlank { root.optString("name", "").trim() }.ifBlank { locality }
+            when {
+                primary.isNotBlank() && locality.isNotBlank() && primary != locality -> "$primary, $locality"
+                primary.isNotBlank() -> primary
+                else -> null
+            }
+        }.getOrNull()
     }
 
     /**
@@ -443,25 +536,30 @@ class NavigationEngine(context: Context) {
         Log.d(NAV_TAG, "Avvio ricerca indirizzo per query=\"$trimmed\"")
 
         val lang = AppLanguageManager.getSavedLanguage(appContext)
-        val outcome = withContext(Dispatchers.IO) {
-            val encoded = URLEncoder.encode(trimmed, "UTF-8")
-            val photonOutcome = fetchPhotonResults(encoded, lang)
-            if (photonOutcome.places.isNotEmpty()) {
-                Log.d(NAV_TAG, "Photon ha restituito ${photonOutcome.places.size} risultati per \"$trimmed\"")
-                photonOutcome
-            } else {
-                Log.d(NAV_TAG, "Photon 0 risultati o errore (networkError=${photonOutcome.networkError}) per \"$trimmed\", eseguo fallback su Nominatim")
-                val nominatimOutcome = fetchNominatimResults(encoded, lang)
-                if (nominatimOutcome.places.isNotEmpty()) {
-                    Log.d(NAV_TAG, "Nominatim fallback ha restituito ${nominatimOutcome.places.size} risultati per \"$trimmed\"")
-                    nominatimOutcome
+        val outcome = try {
+            withContext(Dispatchers.IO) {
+                val encoded = URLEncoder.encode(trimmed, "UTF-8")
+                val photonOutcome = fetchPhotonResults(encoded, lang)
+                if (photonOutcome.places.isNotEmpty()) {
+                    Log.d(NAV_TAG, "Photon ha restituito ${photonOutcome.places.size} risultati per \"$trimmed\"")
+                    photonOutcome
                 } else {
-                    GeocodingOutcome(
-                        places = emptyList(),
-                        networkError = photonOutcome.networkError && nominatimOutcome.networkError
-                    )
+                    Log.d(NAV_TAG, "Photon 0 risultati o errore (networkError=${photonOutcome.networkError}) per \"$trimmed\", eseguo fallback su Nominatim")
+                    val nominatimOutcome = fetchNominatimResults(encoded, lang)
+                    if (nominatimOutcome.places.isNotEmpty()) {
+                        Log.d(NAV_TAG, "Nominatim fallback ha restituito ${nominatimOutcome.places.size} risultati per \"$trimmed\"")
+                        nominatimOutcome
+                    } else {
+                        GeocodingOutcome(
+                            places = emptyList(),
+                            networkError = photonOutcome.networkError && nominatimOutcome.networkError
+                        )
+                    }
                 }
             }
+        } catch (e: CancellationException) {
+            isSearching = false
+            throw e
         }
 
         searchResults = outcome.places
@@ -483,25 +581,50 @@ class NavigationEngine(context: Context) {
         searchStatusMessage = null
     }
 
-    private fun fetchPhotonResults(encodedQuery: String, lang: String): GeocodingOutcome {
-        var conn: HttpURLConnection? = null
+    private suspend fun executeHttpRequest(request: Request): Pair<Int, String> =
+        suspendCancellableCoroutine { cont ->
+            val call = SharedHttpClient.client.newCall(request)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (cont.isActive) {
+                        cont.resumeWithException(e)
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        response.use { res ->
+                            val body = if (res.isSuccessful) res.body?.string().orEmpty() else ""
+                            if (cont.isActive) {
+                                cont.resume(res.code to body)
+                            }
+                        }
+                    } catch (e: IOException) {
+                        if (cont.isActive) {
+                            cont.resumeWithException(e)
+                        }
+                    }
+                }
+            })
+        }
+
+    private suspend fun fetchPhotonResults(encodedQuery: String, lang: String): GeocodingOutcome {
         return try {
-            val langParam = if (lang in setOf("en", "de", "fr", "it")) "&lang=$lang" else ""
-            val urlStr = "https://photon.komoot.io/api/?q=$encodedQuery$langParam&limit=5"
+            val photonLang = if (lang in setOf("en", "de", "fr", "it")) lang else "en"
+            val urlStr = "https://photon.komoot.io/api/?q=$encodedQuery&lang=$photonLang&limit=5"
             Log.d(NAV_TAG, "GET Photon: $urlStr")
-            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 6000
-                readTimeout = 6000
-                setRequestProperty("User-Agent", HTTP_USER_AGENT)
-                setRequestProperty("Accept", "application/json")
-            }
-            val code = conn.responseCode
+            val request = Request.Builder()
+                .url(urlStr)
+                .get()
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+            val (code, body) = executeHttpRequest(request)
             if (code !in 200..299) {
                 Log.d(NAV_TAG, "Photon HTTP $code")
                 return GeocodingOutcome(emptyList(), networkError = true)
             }
-            val body = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
             val root = JSONObject(body)
             val features = root.optJSONArray("features") ?: JSONArray()
             val list = ArrayList<PhotonPlace>(features.length())
@@ -549,32 +672,29 @@ class NavigationEngine(context: Context) {
                 )
             }
             GeocodingOutcome(list, networkError = false)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.d(NAV_TAG, "Errore Photon: ${e.javaClass.simpleName}: ${e.message}")
             GeocodingOutcome(emptyList(), networkError = true)
-        } finally {
-            conn?.disconnect()
         }
     }
 
-    private fun fetchNominatimResults(encodedQuery: String, lang: String): GeocodingOutcome {
-        var conn: HttpURLConnection? = null
+    private suspend fun fetchNominatimResults(encodedQuery: String, lang: String): GeocodingOutcome {
         return try {
             val urlStr = "https://nominatim.openstreetmap.org/search?q=$encodedQuery&format=jsonv2&addressdetails=1&limit=5&accept-language=$lang"
             Log.d(NAV_TAG, "GET Nominatim fallback: $urlStr")
-            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 7000
-                readTimeout = 7000
-                setRequestProperty("User-Agent", HTTP_USER_AGENT)
-                setRequestProperty("Accept", "application/json")
-            }
-            val code = conn.responseCode
+            val request = Request.Builder()
+                .url(urlStr)
+                .get()
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+            val (code, body) = executeHttpRequest(request)
             if (code !in 200..299) {
                 Log.d(NAV_TAG, "Nominatim HTTP $code")
                 return GeocodingOutcome(emptyList(), networkError = true)
             }
-            val body = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
             val arr = JSONArray(body)
             val list = ArrayList<PhotonPlace>(arr.length())
             for (i in 0 until arr.length()) {
@@ -627,16 +747,70 @@ class NavigationEngine(context: Context) {
                 )
             }
             GeocodingOutcome(list, networkError = false)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.d(NAV_TAG, "Errore Nominatim: ${e.javaClass.simpleName}: ${e.message}")
             GeocodingOutcome(emptyList(), networkError = true)
-        } finally {
-            conn?.disconnect()
         }
     }
 
-    fun loadRoutePreview(destination: PhotonPlace) {
+    fun addWaypoint(place: PhotonPlace) {
+        waypoints = waypoints + place
+        recalculateForWaypointChange()
+    }
+
+    fun removeWaypoint(index: Int) {
+        if (index !in waypoints.indices) return
+        waypoints = waypoints.toMutableList().apply { removeAt(index) }
+        recalculateForWaypointChange()
+    }
+
+    fun clearWaypoints() {
+        if (waypoints.isEmpty()) return
+        waypoints = emptyList()
+        recalculateForWaypointChange()
+    }
+
+    private fun recalculateForWaypointChange() {
+        val previewDest = previewDestination
+        val activeDest = activeRoute?.destination
+        when {
+            isRoutePreview && previewDest != null -> loadRoutePreview(previewDest, waypoints)
+            activeDest != null -> calculateRoute(
+                destination = activeDest,
+                avoidTolls = avoidTolls,
+                isRecalculation = true,
+                intermediateWaypoints = waypoints
+            )
+        }
+    }
+
+    fun startOrPreviewRouteWithWaypoints(
+        destination: PhotonPlace,
+        intermediateWaypoints: List<PhotonPlace> = waypoints,
+        startImmediately: Boolean = false
+    ) {
+        waypoints = intermediateWaypoints
+        if (startImmediately) {
+            calculateRoute(
+                destination = destination,
+                avoidTolls = avoidTolls,
+                isRecalculation = false,
+                intermediateWaypoints = intermediateWaypoints
+            )
+        } else {
+            loadRoutePreview(destination, intermediateWaypoints)
+        }
+    }
+
+    fun loadRoutePreview(
+        destination: PhotonPlace,
+        intermediateWaypoints: List<PhotonPlace> = waypoints
+    ) {
         routeJob?.cancel()
+        val wps = intermediateWaypoints.toList()
+        waypoints = wps
         isRouting = true
         routeError = null
         isRoutePreview = true
@@ -647,11 +821,14 @@ class NavigationEngine(context: Context) {
 
         val startLat = currentLat
         val startLon = currentLon
-        val standardUseTolls = if (avoidTolls) 0.0 else 1.0
+        val activeUseTolls = if (avoidTolls) 0.0 else 1.0
+        val activeUseHighways = if (avoidHighways) 0.0 else if (preferScenicRoute) 0.2 else null
+        val activeUseHills = if (preferScenicRoute) 0.95 else null
+        val activeUseFerries = if (avoidFerries) 0.0 else null
 
         Log.d(
             NAV_TAG,
-            "Calcolo anteprima 3 percorsi (avoidTolls=$avoidTolls) da ($startLat, $startLon) a \"${destination.name}\" (${destination.lat}, ${destination.lon})"
+            "Calcolo anteprima percorsi (tolls=$avoidTolls, hw=$avoidHighways, scenic=$preferScenicRoute, ferries=$avoidFerries, waypoints=${wps.size}) da ($startLat, $startLon) a \"${destination.name}\" (${destination.lat}, ${destination.lon})"
         )
 
         routeJob = scope.launch {
@@ -662,7 +839,11 @@ class NavigationEngine(context: Context) {
                             startLat = startLat,
                             startLon = startLon,
                             destination = destination,
-                            useTolls = standardUseTolls
+                            waypoints = wps,
+                            useTolls = activeUseTolls,
+                            useHighways = activeUseHighways,
+                            useHills = activeUseHills,
+                            useFerries = activeUseFerries
                         )
                     }
                     val noTollsDeferred = if (!avoidTolls) {
@@ -671,7 +852,11 @@ class NavigationEngine(context: Context) {
                                 startLat = startLat,
                                 startLon = startLon,
                                 destination = destination,
-                                useTolls = 0.0
+                                waypoints = wps,
+                                useTolls = 0.0,
+                                useHighways = activeUseHighways,
+                                useHills = activeUseHills,
+                                useFerries = activeUseFerries
                             )
                             postValhallaRouteJson(payload)
                                 ?.optJSONObject("trip")
@@ -685,9 +870,11 @@ class NavigationEngine(context: Context) {
                             startLat = startLat,
                             startLon = startLon,
                             destination = destination,
+                            waypoints = wps,
                             useTolls = 0.0,
-                            useHighways = 0.05,
-                            useHills = 0.95
+                            useHighways = if (avoidHighways) 0.0 else 0.05,
+                            useHills = 0.95,
+                            useFerries = activeUseFerries
                         )
                         postValhallaRouteJson(payload)
                             ?.optJSONObject("trip")
@@ -696,7 +883,7 @@ class NavigationEngine(context: Context) {
 
                     val fastestPair = fastestDeferred.await()
                     val fastest = fastestPair.firstOrNull()
-                        ?: requestOsrmRoute(startLat, startLon, destination, avoidTolls)
+                        ?: requestOsrmRoute(startLat, startLon, destination, avoidTolls, avoidHighways, avoidFerries, wps)
                         ?: return@coroutineScope emptyList<RoutePreviewOption>()
 
                     val result = mutableListOf<RoutePreviewOption>()
@@ -771,6 +958,9 @@ class NavigationEngine(context: Context) {
         previewDestination = null
         previewOptions = emptyList()
         selectedPreviewIndex = 0
+        if (activeRoute == null) {
+            waypoints = emptyList()
+        }
         routeError = null
         isFollowingGps = true
         Log.d(NAV_TAG, "Anteprima percorso annullata dall'utente")
@@ -788,9 +978,11 @@ class NavigationEngine(context: Context) {
 
         activeRoute = chosen
         currentManeuverIndex = 0
+        lastClosestSegIdx = 0
         announced300ForManeuver = -1
         announced50ForManeuver = -1
         updateNavigationProgress(currentLat, currentLon, chosen)
+        maybeEnrichSpeedLimitsAsync(chosen)
         val firstInstruction = chosen.maneuvers.firstOrNull()?.instruction.orEmpty()
         if (firstInstruction.isNotBlank()) {
             speak(firstInstruction)
@@ -806,9 +998,12 @@ class NavigationEngine(context: Context) {
     fun calculateRoute(
         destination: PhotonPlace,
         avoidTolls: Boolean = this.avoidTolls,
-        isRecalculation: Boolean = false
+        isRecalculation: Boolean = false,
+        intermediateWaypoints: List<PhotonPlace> = this.waypoints
     ) {
         this.avoidTolls = avoidTolls
+        val wps = intermediateWaypoints.toList()
+        waypoints = wps
         routeJob?.cancel()
         isRouting = true
         routeError = null
@@ -819,24 +1014,26 @@ class NavigationEngine(context: Context) {
         val startLon = currentLon
         Log.d(
             NAV_TAG,
-            "Calcolo percorso (avoidTolls=$avoidTolls) da ($startLat, $startLon) a \"${destination.name}\" (${destination.lat}, ${destination.lon})"
+            "Calcolo percorso (avoidTolls=$avoidTolls, waypoints=${wps.size}) da ($startLat, $startLon) a \"${destination.name}\" (${destination.lat}, ${destination.lon})"
         )
 
         routeJob = scope.launch {
             val result = withContext(Dispatchers.IO) {
-                requestValhallaRoute(startLat, startLon, destination, avoidTolls)
+                requestValhallaRoute(startLat, startLon, destination, avoidTolls, wps)
                     ?: run {
                         Log.d(NAV_TAG, "Valhalla fallito o timeout, eseguo fallback automatico su OSRM polyline6 (avoidTolls=$avoidTolls)")
-                        requestOsrmRoute(startLat, startLon, destination, avoidTolls)
+                        requestOsrmRoute(startLat, startLon, destination, avoidTolls, avoidHighways, avoidFerries, wps)
                     }
             }
             isRouting = false
             if (result != null) {
                 activeRoute = result
                 currentManeuverIndex = 0
+                lastClosestSegIdx = 0
                 announced300ForManeuver = -1
                 announced50ForManeuver = -1
                 updateNavigationProgress(currentLat, currentLon, result)
+                maybeEnrichSpeedLimitsAsync(result)
                 val firstInstruction = result.maneuvers.firstOrNull()?.instruction.orEmpty()
                 if (!isRecalculation && firstInstruction.isNotBlank()) {
                     speak(firstInstruction)
@@ -850,24 +1047,36 @@ class NavigationEngine(context: Context) {
 
     fun stopNavigation() {
         routeJob?.cancel()
+        speedLimitJob?.cancel()
         isRouting = false
         isRoutePreview = false
         previewDestination = null
         previewOptions = emptyList()
         selectedPreviewIndex = 0
+        waypoints = emptyList()
         activeRoute = null
         traveledRoutePoints = emptyList()
         remainingRoutePoints = emptyList()
         routeError = null
         currentManeuverIndex = 0
+        lastClosestSegIdx = 0
+        currentSpeedLimitKmh = -1
         nextTurnInstruction = ""
         nextTurnStreet = ""
+        nextTurnRoadBadges = emptyList()
+        nextTurnIcon = TurnIconType.STRAIGHT
+        nextTurnRoundaboutExitAngle = 0f
         nextTurnDistanceText = ""
         remainingDistanceText = ""
+        remainingDurationText = ""
+        arrivalTimeText = ""
         etaText = ""
         announced300ForManeuver = -1
         announced50ForManeuver = -1
         runCatching { tts?.stop() }
+        if (hasGpsFix) {
+            maybeRefreshCurrentPlaceLabel(currentLat, currentLon)
+        }
         Log.d(NAV_TAG, "Navigazione terminata dall'utente")
     }
 
@@ -881,9 +1090,11 @@ class NavigationEngine(context: Context) {
         startLat: Double,
         startLon: Double,
         destination: PhotonPlace,
+        waypoints: List<PhotonPlace> = emptyList(),
         useTolls: Double,
         useHighways: Double? = null,
         useHills: Double? = null,
+        useFerries: Double? = null,
         alternates: Int = 0
     ): JSONObject {
         val autoOptions = JSONObject().put("use_tolls", useTolls)
@@ -892,6 +1103,9 @@ class NavigationEngine(context: Context) {
         }
         if (useHills != null) {
             autoOptions.put("use_hills", useHills)
+        }
+        if (useFerries != null) {
+            autoOptions.put("use_ferries", useFerries)
         }
         val valhallaLang = when (AppLanguageManager.getSavedLanguage(appContext)) {
             "de" -> "de-DE"
@@ -909,12 +1123,21 @@ class NavigationEngine(context: Context) {
                 "locations",
                 JSONArray().apply {
                     put(JSONObject().put("lat", startLat).put("lon", startLon))
+                    for (wp in waypoints) {
+                        put(
+                            JSONObject()
+                                .put("lat", wp.lat)
+                                .put("lon", wp.lon)
+                                .put("type", "break")
+                        )
+                    }
                     put(JSONObject().put("lat", destination.lat).put("lon", destination.lon))
                 }
             )
             put("costing", "auto")
             put("costing_options", JSONObject().put("auto", autoOptions))
-            if (alternates > 0) {
+            put("shape_attributes", JSONArray().put("edge.speed_limit"))
+            if (alternates > 0 && waypoints.isEmpty()) {
                 put("alternates", alternates)
             }
             put(
@@ -926,110 +1149,212 @@ class NavigationEngine(context: Context) {
         }
     }
 
-    private fun postValhallaRouteJson(payload: JSONObject): JSONObject? {
-        var conn: HttpURLConnection? = null
+    private suspend fun postValhallaRouteJson(payload: JSONObject): JSONObject? {
         return try {
-            conn = (URL("https://valhalla1.openstreetmap.de/route").openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                setRequestProperty("User-Agent", HTTP_USER_AGENT)
-            }
+            val request = Request.Builder()
+                .url("https://valhalla1.openstreetmap.de/route")
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
 
-            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(payload.toString())
-                writer.flush()
-            }
-
-            val code = conn.responseCode
+            val (code, body) = executeHttpRequest(request)
             if (code !in 200..299) {
                 Log.d(NAV_TAG, "Valhalla HTTP $code")
                 return null
             }
 
-            val body = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
             JSONObject(body)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.d(NAV_TAG, "Errore routing Valhalla: ${e.javaClass.simpleName}: ${e.message}")
             null
-        } finally {
-            conn?.disconnect()
         }
     }
 
     private fun parseValhallaTrip(trip: JSONObject, destination: PhotonPlace): ValhallaRoute? {
         val legs = trip.optJSONArray("legs") ?: return null
         if (legs.length() == 0) return null
-        val leg0 = legs.getJSONObject(0)
 
-        val shapeEncoded = leg0.optString("shape", "")
-        if (shapeEncoded.isBlank()) return null
-        val shapePoints = decodePolyline6(shapeEncoded)
-        if (shapePoints.isEmpty()) return null
+        val allShapePoints = ArrayList<LatLng>()
+        val legLimitArrays = ArrayList<IntArray>(legs.length())
+        val maneuvers = ArrayList<ValhallaManeuver>()
+        var fallbackTotalKm = 0.0
+        var fallbackTotalSec = 0.0
+        var anyLegToll = false
 
-        val rawManeuvers = leg0.optJSONArray("maneuvers") ?: JSONArray()
-        val maneuvers = ArrayList<ValhallaManeuver>(rawManeuvers.length())
-        for (i in 0 until rawManeuvers.length()) {
-            val m = rawManeuvers.getJSONObject(i)
-            val type = m.optInt("type", 1)
-            val instruction = m.optString("instruction", "").trim()
-            val streetNamesArr = m.optJSONArray("street_names")
-            val street = if (streetNamesArr != null && streetNamesArr.length() > 0) {
-                (0 until streetNamesArr.length()).mapNotNull { idx ->
-                    streetNamesArr.optString(idx)?.takeIf { it.isNotBlank() }
-                }.joinToString(" / ")
-            } else {
-                ""
+        for (legIdx in 0 until legs.length()) {
+            val leg = legs.getJSONObject(legIdx)
+            val shapeEncoded = leg.optString("shape", "")
+            if (shapeEncoded.isBlank()) continue
+            val legPoints = decodePolyline6(shapeEncoded)
+            if (legPoints.isEmpty()) continue
+
+            val shapeOffset = allShapePoints.size
+            allShapePoints.addAll(legPoints)
+            legLimitArrays.add(extractLegSpeedLimits(leg, legPoints.size))
+            val legLastGlobalIdx = allShapePoints.lastIndex
+
+            val legSummary = leg.optJSONObject("summary")
+            if (legSummary != null) {
+                fallbackTotalKm += legSummary.optDouble("length", 0.0)
+                fallbackTotalSec += legSummary.optDouble("time", 0.0)
+                if (legSummary.optBoolean("has_toll", false)) anyLegToll = true
             }
-            val lengthKm = m.optDouble("length", 0.0)
-            val timeSec = m.optDouble("time", 0.0)
-            val beginIdx = m.optInt("begin_shape_index", 0).coerceIn(0, shapePoints.lastIndex)
-            val endIdx = m.optInt("end_shape_index", shapePoints.lastIndex).coerceIn(beginIdx, shapePoints.lastIndex)
-            maneuvers.add(
-                ValhallaManeuver(
-                    type = type,
-                    instruction = instruction,
-                    streetName = street,
-                    lengthKm = lengthKm,
-                    timeSec = timeSec,
-                    beginShapeIndex = beginIdx,
-                    endShapeIndex = endIdx,
-                    turnIcon = mapValhallaManeuverIcon(type, instruction)
+
+            val rawManeuvers = leg.optJSONArray("maneuvers") ?: JSONArray()
+            for (i in 0 until rawManeuvers.length()) {
+                val m = rawManeuvers.getJSONObject(i)
+                val type = m.optInt("type", 1)
+                val instruction = m.optString("instruction", "").trim()
+                val (street, roadBadges) = extractValhallaStreetAndBadges(m)
+                val lengthKm = m.optDouble("length", 0.0)
+                val timeSec = m.optDouble("time", 0.0)
+                val beginIdx = (shapeOffset + m.optInt("begin_shape_index", 0)).coerceIn(shapeOffset, legLastGlobalIdx)
+                val endIdx = (shapeOffset + m.optInt("end_shape_index", legPoints.lastIndex)).coerceIn(beginIdx, legLastGlobalIdx)
+                val turnIcon = mapValhallaManeuverIcon(type, instruction)
+                val roundaboutAngle = if (type == 26 || type == 27) {
+                    computeRoundaboutExitAngle(
+                        points = allShapePoints,
+                        beginIdx = beginIdx,
+                        endIdx = endIdx,
+                        fallbackEntryHeading = m.optDouble("begin_heading", Double.NaN),
+                        fallbackExitHeading = m.optDouble("end_heading", Double.NaN)
+                    )
+                } else {
+                    0f
+                }
+                maneuvers.add(
+                    ValhallaManeuver(
+                        type = type,
+                        instruction = instruction,
+                        streetName = street,
+                        roadBadges = roadBadges,
+                        lengthKm = lengthKm,
+                        timeSec = timeSec,
+                        beginShapeIndex = beginIdx,
+                        endShapeIndex = endIdx,
+                        turnIcon = turnIcon,
+                        roundaboutExitAngle = roundaboutAngle
+                    )
                 )
-            )
+            }
         }
 
-        val summary = trip.optJSONObject("summary") ?: leg0.optJSONObject("summary")
-        val totalKm = summary?.optDouble("length", 0.0) ?: maneuvers.sumOf { it.lengthKm }
-        val totalSec = summary?.optDouble("time", 0.0) ?: maneuvers.sumOf { it.timeSec }
-        val hasToll = summary?.optBoolean("has_toll", false)
-            ?: leg0.optJSONObject("summary")?.optBoolean("has_toll", false)
-            ?: false
+        if (allShapePoints.isEmpty()) return null
+
+        val mergedSpeedLimits = IntArray(allShapePoints.size) { -1 }
+        var limitCursor = 0
+        for (arr in legLimitArrays) {
+            arr.copyInto(mergedSpeedLimits, destinationOffset = limitCursor)
+            limitCursor += arr.size
+        }
+
+        val summary = trip.optJSONObject("summary")
+        val totalKm = summary?.optDouble("length", 0.0)?.takeIf { it > 0.0 }
+            ?: fallbackTotalKm.takeIf { it > 0.0 }
+            ?: maneuvers.sumOf { it.lengthKm }
+        val totalSec = summary?.optDouble("time", 0.0)?.takeIf { it > 0.0 }
+            ?: fallbackTotalSec.takeIf { it > 0.0 }
+            ?: maneuvers.sumOf { it.timeSec }
+        val hasToll = summary?.optBoolean("has_toll", false) ?: anyLegToll
 
         return ValhallaRoute(
-            shapePoints = shapePoints,
+            shapePoints = allShapePoints,
             maneuvers = maneuvers,
             totalLengthKm = totalKm,
             totalTimeSec = totalSec,
             destination = destination,
-            hasToll = hasToll
+            hasToll = hasToll,
+            speedLimitsKmh = mergedSpeedLimits
         )
     }
 
-    private fun requestValhallaPreviewPair(
+    private fun maybeEnrichSpeedLimitsAsync(route: ValhallaRoute) {
+        speedLimitJob?.cancel()
+        val limits = route.speedLimitsKmh
+        val points = route.shapePoints
+        if (points.size < 2 || limits.size != points.size) return
+        if (limits.any { it > 0 }) return
+
+        speedLimitJob = scope.launch {
+            val fetched = withContext(Dispatchers.IO) {
+                fetchTraceAttributesSpeedLimits(points)
+            } ?: return@launch
+
+            if (activeRoute === route && fetched.size == route.speedLimitsKmh.size) {
+                fetched.copyInto(route.speedLimitsKmh)
+                currentSpeedLimitKmh = route.speedLimitsKmh.getOrNull(lastClosestSegIdx) ?: -1
+                Log.d(NAV_TAG, "Limiti velocità Valhalla caricati su ${fetched.count { it > 0 }}/${fetched.size} vertici (attuale=$currentSpeedLimitKmh)")
+            }
+        }
+    }
+
+    private suspend fun fetchTraceAttributesSpeedLimits(points: List<LatLng>): IntArray? {
+        return try {
+            val maxSamples = 3500
+            val sampledIndices: IntArray? = if (points.size > maxSamples) {
+                val step = ((points.size - 1).toDouble() / (maxSamples - 1)).coerceAtLeast(1.0)
+                IntArray(maxSamples) { idx ->
+                    if (idx == maxSamples - 1) points.lastIndex else (idx * step).toInt().coerceIn(0, points.lastIndex)
+                }
+            } else {
+                null
+            }
+            val encoded = encodePolyline6(points, sampledIndices)
+            val payload = JSONObject().apply {
+                put("encoded_polyline", encoded)
+                put("costing", "auto")
+                put("shape_match", "map_snap")
+                put(
+                    "filters",
+                    JSONObject()
+                        .put("attributes", JSONArray().put("edge.speed_limit").put("edge.begin_shape_index").put("edge.end_shape_index"))
+                        .put("action", "include")
+                )
+            }
+            val request = Request.Builder()
+                .url("https://valhalla1.openstreetmap.de/trace_attributes")
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+
+            val (code, body) = executeHttpRequest(request)
+            if (code !in 200..299 || body.isBlank()) return null
+
+            val out = IntArray(points.size) { -1 }
+            val ok = applyTraceAttributesEdges(JSONObject(body), out, sampledIndices)
+            if (ok) out else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.d(NAV_TAG, "Trace attributes speed limit skip: ${e.javaClass.simpleName}")
+            null
+        }
+    }
+
+    private suspend fun requestValhallaPreviewPair(
         startLat: Double,
         startLon: Double,
         destination: PhotonPlace,
-        useTolls: Double
+        waypoints: List<PhotonPlace> = emptyList(),
+        useTolls: Double,
+        useHighways: Double? = null,
+        useHills: Double? = null,
+        useFerries: Double? = null
     ): List<ValhallaRoute> {
         val payload = buildValhallaPayload(
             startLat = startLat,
             startLon = startLon,
             destination = destination,
+            waypoints = waypoints,
             useTolls = useTolls,
-            alternates = 1
+            useHighways = useHighways,
+            useHills = useHills,
+            useFerries = useFerries,
+            alternates = if (waypoints.isEmpty()) 1 else 0
         )
         val root = postValhallaRouteJson(payload) ?: return emptyList()
         val results = mutableListOf<ValhallaRoute>()
@@ -1046,58 +1371,70 @@ class NavigationEngine(context: Context) {
         return results
     }
 
-    private fun requestValhallaRoute(
+    private suspend fun requestValhallaRoute(
         startLat: Double,
         startLon: Double,
         destination: PhotonPlace,
-        avoidTolls: Boolean
+        avoidTolls: Boolean,
+        waypoints: List<PhotonPlace> = emptyList()
     ): ValhallaRoute? {
         val payload = buildValhallaPayload(
             startLat = startLat,
             startLon = startLon,
             destination = destination,
-            useTolls = if (avoidTolls) 0.0 else 1.0
+            waypoints = waypoints,
+            useTolls = if (avoidTolls) 0.0 else 1.0,
+            useHighways = if (avoidHighways) 0.0 else if (preferScenicRoute) 0.2 else null,
+            useHills = if (preferScenicRoute) 0.95 else null,
+            useFerries = if (avoidFerries) 0.0 else null
         )
         val root = postValhallaRouteJson(payload) ?: return null
         val trip = root.optJSONObject("trip") ?: return null
         val route = parseValhallaTrip(trip, destination) ?: return null
-        Log.d(NAV_TAG, "Percorso Valhalla calcolato (avoidTolls=$avoidTolls): ${route.shapePoints.size} punti (polyline6), ${route.maneuvers.size} manovre, ${"%.1f".format(route.totalLengthKm)} km")
+        Log.d(NAV_TAG, "Percorso Valhalla calcolato (tolls=$avoidTolls, hw=$avoidHighways, scenic=$preferScenicRoute, ferries=$avoidFerries, waypoints=${waypoints.size}): ${route.shapePoints.size} punti (polyline6), ${route.maneuvers.size} manovre, ${"%.1f".format(route.totalLengthKm)} km")
         return route
     }
 
-    private fun requestOsrmRoute(
+    private suspend fun requestOsrmRoute(
         startLat: Double,
         startLon: Double,
         destination: PhotonPlace,
-        avoidTolls: Boolean
+        avoidTolls: Boolean,
+        avoidHighways: Boolean = false,
+        avoidFerries: Boolean = false,
+        waypoints: List<PhotonPlace> = emptyList()
     ): ValhallaRoute? {
-        var conn: HttpURLConnection? = null
         return try {
-            val coordsPart = String.format(
-                Locale.US,
-                "%.6f,%.6f;%.6f,%.6f",
-                startLon, startLat,
-                destination.lon, destination.lat
-            )
-            val tollSuffix = if (avoidTolls) "&exclude=toll" else ""
-            val urlStr = "https://router.project-osrm.org/route/v1/driving/$coordsPart?overview=full&geometries=polyline6&steps=true$tollSuffix"
+            val allCoords = buildList {
+                add(startLon to startLat)
+                waypoints.forEach { add(it.lon to it.lat) }
+                add(destination.lon to destination.lat)
+            }
+            val coordsPart = allCoords.joinToString(";") { (lon, lat) ->
+                String.format(Locale.US, "%.6f,%.6f", lon, lat)
+            }
+            val excludes = buildList {
+                if (avoidTolls) add("toll")
+                if (avoidHighways) add("motorway")
+                if (avoidFerries) add("ferry")
+            }
+            val excludeSuffix = if (excludes.isNotEmpty()) "&exclude=${excludes.joinToString(",")}" else ""
+            val urlStr = "https://router.project-osrm.org/route/v1/driving/$coordsPart?overview=full&geometries=polyline6&steps=true$excludeSuffix"
             Log.d(NAV_TAG, "GET OSRM fallback: $urlStr")
 
-            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("User-Agent", HTTP_USER_AGENT)
-                setRequestProperty("Accept", "application/json")
-            }
+            val request = Request.Builder()
+                .url(urlStr)
+                .get()
+                .header("User-Agent", HTTP_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
 
-            val code = conn.responseCode
+            val (code, body) = executeHttpRequest(request)
             if (code !in 200..299) {
                 Log.d(NAV_TAG, "OSRM HTTP $code")
                 return null
             }
 
-            val body = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
             val root = JSONObject(body)
             val routes = root.optJSONArray("routes") ?: return null
             if (routes.length() == 0) return null
@@ -1111,16 +1448,22 @@ class NavigationEngine(context: Context) {
             val totalSec = route0.optDouble("duration", 0.0)
 
             val legs = route0.optJSONArray("legs")
-            val steps = if (legs != null && legs.length() > 0) {
-                legs.getJSONObject(0).optJSONArray("steps") ?: JSONArray()
-            } else JSONArray()
+            val allSteps = mutableListOf<JSONObject>()
+            if (legs != null) {
+                for (legIdx in 0 until legs.length()) {
+                    val legSteps = legs.getJSONObject(legIdx).optJSONArray("steps") ?: continue
+                    for (sIdx in 0 until legSteps.length()) {
+                        allSteps.add(legSteps.getJSONObject(sIdx))
+                    }
+                }
+            }
 
-            val maneuvers = ArrayList<ValhallaManeuver>(steps.length().coerceAtLeast(1))
+            val maneuvers = ArrayList<ValhallaManeuver>(allSteps.size.coerceAtLeast(1))
             var searchStartIdx = 0
 
-            val stepIndices = IntArray(steps.length())
-            for (i in 0 until steps.length()) {
-                val step = steps.getJSONObject(i)
+            val stepIndices = IntArray(allSteps.size)
+            for (i in allSteps.indices) {
+                val step = allSteps[i]
                 val manObj = step.optJSONObject("maneuver")
                 val locArr = manObj?.optJSONArray("location")
                 if (locArr != null && locArr.length() >= 2) {
@@ -1142,9 +1485,15 @@ class NavigationEngine(context: Context) {
                 }
             }
 
-            for (i in 0 until steps.length()) {
-                val step = steps.getJSONObject(i)
+            for (i in allSteps.indices) {
+                val step = allSteps[i]
                 val street = step.optString("name", "").trim()
+                val refBadges = step.optString("ref", "")
+                    .split(";", "/")
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && isRoadBadgeCode(it) }
+                    .distinct()
+                    .take(3)
                 val distKm = step.optDouble("distance", 0.0) / 1000.0
                 val durSec = step.optDouble("duration", 0.0)
                 val manObj = step.optJSONObject("maneuver")
@@ -1153,10 +1502,22 @@ class NavigationEngine(context: Context) {
 
                 val (icon, instruction) = mapOsrmManeuver(appContext, mType, mMod, street)
                 val beginIdx = stepIndices[i].coerceIn(0, shapePoints.lastIndex)
-                val endIdx = if (i + 1 < steps.length()) {
+                val endIdx = if (i + 1 < allSteps.size) {
                     stepIndices[i + 1].coerceIn(beginIdx, shapePoints.lastIndex)
                 } else {
                     shapePoints.lastIndex
+                }
+
+                val roundaboutAngle = if (icon == TurnIconType.ROUNDABOUT) {
+                    computeRoundaboutExitAngle(
+                        points = shapePoints,
+                        beginIdx = beginIdx,
+                        endIdx = endIdx,
+                        fallbackEntryHeading = manObj?.optDouble("bearing_before", Double.NaN) ?: Double.NaN,
+                        fallbackExitHeading = manObj?.optDouble("bearing_after", Double.NaN) ?: Double.NaN
+                    )
+                } else {
+                    0f
                 }
 
                 maneuvers.add(
@@ -1164,11 +1525,13 @@ class NavigationEngine(context: Context) {
                         type = if (icon == TurnIconType.DESTINATION) 4 else 1,
                         instruction = instruction,
                         streetName = street,
+                        roadBadges = refBadges,
                         lengthKm = distKm,
                         timeSec = durSec,
                         beginShapeIndex = beginIdx,
                         endShapeIndex = endIdx,
-                        turnIcon = icon
+                        turnIcon = icon,
+                        roundaboutExitAngle = roundaboutAngle
                     )
                 )
             }
@@ -1200,11 +1563,11 @@ class NavigationEngine(context: Context) {
                 totalTimeSec = totalSec,
                 destination = destination
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.d(NAV_TAG, "Errore routing OSRM fallback: ${e.javaClass.simpleName}: ${e.message}")
             null
-        } finally {
-            conn?.disconnect()
         }
     }
 
@@ -1246,6 +1609,8 @@ class NavigationEngine(context: Context) {
             traveledRoutePoints = emptyList()
             remainingRoutePoints = pts
         }
+        lastClosestSegIdx = closestSegIdx
+        currentSpeedLimitKmh = route.speedLimitsKmh.getOrNull(closestSegIdx) ?: -1
 
         // Align bearing with route segment if navigating and user is on route
         if (closestIndex < pts.lastIndex && minDistMeters <= 45.0) {
@@ -1294,10 +1659,17 @@ class NavigationEngine(context: Context) {
         }
 
         nextTurnInstruction = upcomingManeuver.instruction.ifBlank { currentManeuver.instruction }
-        nextTurnStreet = upcomingManeuver.streetName
-            .ifBlank { currentManeuver.streetName }
-            .ifBlank { route.destination.name }
+        nextTurnRoadBadges = upcomingManeuver.roadBadges
+        nextTurnStreet = if (upcomingManeuver.turnIcon == TurnIconType.DESTINATION) {
+            upcomingManeuver.streetName.ifBlank { route.destination.name }
+        } else {
+            upcomingManeuver.streetName
+                .ifBlank { upcomingManeuver.instruction }
+                .ifBlank { currentManeuver.streetName }
+                .ifBlank { route.destination.name }
+        }
         nextTurnIcon = upcomingManeuver.turnIcon
+        nextTurnRoundaboutExitAngle = upcomingManeuver.roundaboutExitAngle
         nextTurnDistanceText = formatDistance(distToTurnM)
 
         // Remaining total distance and time
@@ -1312,12 +1684,17 @@ class NavigationEngine(context: Context) {
             remSec += maneuvers[i].timeSec
         }
         remainingDistanceText = formatDistance(remKm * 1000.0)
+        val totalMin = (remSec / 60.0).roundToInt().coerceAtLeast(1)
+        val hours = totalMin / 60
+        val mins = totalMin % 60
+        remainingDurationText = if (hours > 0) "${hours} h ${mins} min" else "$mins min"
         val arrivalDate = Date(System.currentTimeMillis() + (remSec * 1000.0).toLong())
         val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+        arrivalTimeText = timeFmt.format(arrivalDate)
         etaText = AppLanguageManager.localizedString(
             appContext,
             R.string.nav_eta_format,
-            timeFmt.format(arrivalDate),
+            arrivalTimeText,
             remainingDistanceText
         )
 
@@ -1389,6 +1766,56 @@ class NavigationEngine(context: Context) {
         aLat: Double, aLon: Double,
         bLat: Double, bLon: Double
     ): Double = projectPointOntoSegment(pLat, pLon, aLat, aLon, bLat, bLon).second
+
+    private fun computeRoundaboutExitAngle(
+        points: List<LatLng>,
+        beginIdx: Int,
+        endIdx: Int,
+        fallbackEntryHeading: Double,
+        fallbackExitHeading: Double
+    ): Float {
+        if (points.isEmpty()) return 0f
+        val safeBegin = beginIdx.coerceIn(0, points.lastIndex)
+        val safeEnd = endIdx.coerceIn(safeBegin, points.lastIndex)
+
+        var entryBearing: Float? = null
+        val minBackIdx = (safeBegin - 5).coerceAtLeast(0)
+        for (idx in (safeBegin - 1) downTo minBackIdx) {
+            val d = haversineMeters(
+                points[idx].latitude, points[idx].longitude,
+                points[safeBegin].latitude, points[safeBegin].longitude
+            )
+            if (d > 0.5) {
+                entryBearing = bearingDegrees(
+                    points[idx].latitude, points[idx].longitude,
+                    points[safeBegin].latitude, points[safeBegin].longitude
+                )
+                break
+            }
+        }
+        val resolvedEntry = entryBearing
+            ?: if (!fallbackEntryHeading.isNaN()) fallbackEntryHeading.toFloat() else 0f
+
+        var exitBearing: Float? = null
+        val maxFwdIdx = (safeEnd + 5).coerceAtMost(points.lastIndex)
+        for (idx in (safeEnd + 1)..maxFwdIdx) {
+            val d = haversineMeters(
+                points[safeEnd].latitude, points[safeEnd].longitude,
+                points[idx].latitude, points[idx].longitude
+            )
+            if (d > 0.5) {
+                exitBearing = bearingDegrees(
+                    points[safeEnd].latitude, points[safeEnd].longitude,
+                    points[idx].latitude, points[idx].longitude
+                )
+                break
+            }
+        }
+        val resolvedExit = exitBearing
+            ?: if (!fallbackExitHeading.isNaN()) fallbackExitHeading.toFloat() else 0f
+
+        return ((resolvedExit - resolvedEntry + 360f) % 360f)
+    }
 
     private fun bearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
         val phi1 = Math.toRadians(lat1)

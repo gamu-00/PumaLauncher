@@ -51,6 +51,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { settingsRepo.resetToDefaults() }
     }
 
+    fun setHomeAddress(label: String, lat: Double, lon: Double) {
+        viewModelScope.launch { settingsRepo.setHomeAddress(label, lat, lon) }
+    }
+
+    fun clearHomeAddress() {
+        viewModelScope.launch { settingsRepo.clearHomeAddress() }
+    }
+
     // ── Navigation ────────────────────────────────────────────────────────────
     private val _nav = MutableStateFlow(NavDestination.HOME)
     val nav: StateFlow<NavDestination> = _nav

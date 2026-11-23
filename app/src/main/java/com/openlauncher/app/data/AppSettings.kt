@@ -9,6 +9,7 @@ import kotlin.math.abs
 enum class AppFont { SYSTEM, JETBRAINS_MONO, SOURCE_CODE_PRO }
 enum class DayNightMode { DARK, LIGHT, AUTO, SYSTEM }
 enum class GradientDirection { TOP_TO_BOTTOM, LEFT_TO_RIGHT, DIAGONAL, RADIAL }
+enum class DrivingAvatar { CLASSIC_ARROW, PUMA_ST_BLUE, SPORT_RED }
 
 data class ThemeColorPreset(
     @StringRes val nameRes: Int,
@@ -81,6 +82,11 @@ data class AppSettings(
     // Native Navigator preferences
     val avoidTolls: Boolean = false,
     val voiceGuidanceEnabled: Boolean = true,
+    val nav3dViewEnabled: Boolean = true,
+    val drivingAvatar: DrivingAvatar = DrivingAvatar.CLASSIC_ARROW,
+    val homeAddressLabel: String? = null,
+    val homeLat: Double? = null,
+    val homeLon: Double? = null,
     // Media Station & weather contextual pause timeout
     val mediaPauseTimeoutMinutes: Int = DEFAULT_MEDIA_PAUSE_TIMEOUT_MINUTES
 )

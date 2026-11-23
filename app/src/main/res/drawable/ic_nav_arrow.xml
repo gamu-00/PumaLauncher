@@ -1,26 +1,30 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="44dp"
-    android:height="44dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <!-- Outer dark contrast border for Day/Light maps (matches LightCockpitPalette textPrimary) -->
+    android:width="54dp"
+    android:height="54dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- Soft layered ground shadow beneath disc -->
     <path
-        android:fillAlpha="0.65"
-        android:fillColor="#0F172A"
-        android:pathData="M24,6 L38,38 L24,30.5 L10,38 Z"
-        android:strokeColor="#0F172A"
-        android:strokeLineJoin="round"
-        android:strokeWidth="6.5" />
-    <!-- Crisp light border + vivid automotive chevron fill for Night/Dark maps (matches DarkCockpitPalette textPrimary) -->
+        android:fillColor="#26000000"
+        android:pathData="M32,8 A25.5,25.5 0 1,0 32,59 A25.5,25.5 0 1,0 32,8 Z" />
     <path
-        android:fillColor="#2979FF"
-        android:pathData="M24,6 L38,38 L24,30.5 L10,38 Z"
-        android:strokeColor="#F8FAFC"
-        android:strokeLineJoin="round"
-        android:strokeWidth="3.2" />
-    <!-- Subtle right-wing depth facet -->
+        android:fillColor="#3D000000"
+        android:pathData="M32,9.5 A23.5,23.5 0 1,0 32,56.5 A23.5,23.5 0 1,0 32,9.5 Z" />
+    <!-- White puck disc with subtle border -->
     <path
-        android:fillAlpha="0.55"
-        android:fillColor="#1A5FD1"
-        android:pathData="M24,7.5 L36.6,36.4 L24,29.6 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,8 A23,23 0 1,0 32,54 A23,23 0 1,0 32,8 Z"
+        android:strokeColor="#DADCE0"
+        android:strokeWidth="2.2" />
+    <!-- Inner subtle bevel rim -->
+    <path
+        android:fillColor="#F8F9FA"
+        android:pathData="M32,10.5 A20.5,20.5 0 1,0 32,51.5 A20.5,20.5 0 1,0 32,10.5 Z" />
+    <!-- Directional chevron arrow in Google Maps Blue #1A73E8 with 3D facet -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M32,14.5 L45,42 L32,36.2 L19,42 Z" />
+    <path
+        android:fillColor="#1557B0"
+        android:pathData="M32,14.5 L45,42 L32,36.2 Z" />
 </vector>

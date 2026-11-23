@@ -202,6 +202,21 @@ fun HomeScreen(
                 accentColorHex = settings.accentColorHex,
                 avoidTolls = settings.avoidTolls,
                 voiceGuidanceEnabled = settings.voiceGuidanceEnabled,
+                nav3dViewEnabled = settings.nav3dViewEnabled,
+                drivingAvatar = settings.drivingAvatar,
+                homeAddressLabel = settings.homeAddressLabel,
+                homeLat = settings.homeLat,
+                homeLon = settings.homeLon,
+                onSaveHomeAddress = { label, lat, lon ->
+                    uiScope.launch {
+                        settingsRepo.setHomeAddress(label, lat, lon)
+                    }
+                },
+                onClearHomeAddress = {
+                    uiScope.launch {
+                        settingsRepo.clearHomeAddress()
+                    }
+                },
                 onToggleAvoidTolls = { enabled ->
                     uiScope.launch {
                         settingsRepo.updateSettings { it.copy(avoidTolls = enabled) }
@@ -212,6 +227,16 @@ fun HomeScreen(
                         settingsRepo.updateSettings { it.copy(voiceGuidanceEnabled = enabled) }
                     }
                 },
+                onToggleNav3dView = { enabled ->
+                    uiScope.launch {
+                        settingsRepo.updateSettings { it.copy(nav3dViewEnabled = enabled) }
+                    }
+                },
+                onSelectDrivingAvatar = { avatar ->
+                    uiScope.launch {
+                        settingsRepo.updateSettings { it.copy(drivingAvatar = avatar) }
+                    }
+                },
                 isCompactHeight = isCompactHeight,
                 moduleShape = moduleShape,
                 homePressTrigger = homePressTrigger,
@@ -220,7 +245,8 @@ fun HomeScreen(
                 navigationEngine = navigationEngine,
                 isHomeVisible = isHomeVisible,
                 onSearchOverlayChanged = onMapSearchOpenChanged,
-                uiScale = effectiveUiScale
+                uiScale = effectiveUiScale,
+                modifier = Modifier.fillMaxSize()
             )
 
             // Child 1: Top/Upper Media Station Card (Movies & TV / YouTube / Contextual Weather)

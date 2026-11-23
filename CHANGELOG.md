@@ -2,6 +2,29 @@
 
 All notable changes to **PumaLauncher** are documented in this file.
 
+## [v0.1.3] - 2026-11-23
+
+### Modular Navigator Architecture
+- **23-Module Refactor & Legacy Cleanup**: Replaced the legacy 2,146-line monolithic navigator panel with 23 focused, independent UI and engine modules (`NativeNavigatorPanel`, `NavigationEngine`, `TurnByTurnBanner`, `RoutePreviewCard`, `RoutePreviewOptions`, `NavigationOverlays`, `ActiveNavOverlays`, `IdleMapOverlays`, `TripSummarySheet`, `TripSheetExpandedOptions`, `SpeedIndicators`, `DrivingAvatarPicker`, `VehicleAvatarOverlay`, `SearchOverlaySheet`, `SearchBarComponents`, `SearchDropdownOverlays`, `HomeSearchStatusBanner`, `ValhallaOptionsPopup`, `ValhallaParser`, `ValhallaSpeedLimitParser`, `RoundaboutIcon`, `MapLibreHelpers`, `SharedHttpClient`), removing obsolete code and adapting all proportions to the landscape split-screen layout.
+
+### Google Maps-Style UI & Dynamic Day/Night Theme
+- **Day & Night Automotive Theme (`AutomotiveMapStyle`)**: Full Day/Night visual parity featuring a slate-blue nocturnal map palette with high-contrast bright cyan route polylines and anthracite surfaces.
+- **Expanded Turn-by-Turn Banner (`TurnByTurnBanner`)**: Enlarged active maneuver banner with crisp vector icons, custom roundabout exit geometry (`RoundaboutIcon`), and compact road shield badges (`SS`, `SP`, `A`, `B`).
+- **Multi-Route Preview (`RoutePreviewCard`, `RoutePreviewOptions`)**: Interactive route comparison for **Fastest**, **Alternative**, and **Scenic** Valhalla profiles with toll indicators and split-screen adaptive controls.
+
+### Search Overlay & Quick Shortcuts
+- **Full-Screen Search Sheet (`SearchOverlaySheet`, `SearchBarComponents`, `SearchDropdownOverlays`)**: Dedicated search overlay with live Photon & Nominatim geocoding, persistent **Home** and **Work** quick-slot saving (quick tap to navigate, long-press to edit or reset), and local **Recent** search history (last 10 places).
+
+### Real-Time Speedometer & Speed Limits
+- **Unified Speed Pill (`SpeedIndicators`, `ValhallaSpeedLimitParser`)**: Google Maps-style combined speedometer and European speed limit sign showing live GPS speed (highlighted in red when exceeding the limit) alongside road speed limits parsed from Valhalla `edge.speed_limit` into a lightweight `IntArray` with `/trace_attributes` fallback.
+
+### Expandable Bottom Sheet & 2.5D Driving Avatars
+- **Swipe-Up Trip Drawer (`TripSummarySheet`, `TripSheetExpandedOptions`)**: Interactive bottom sheet during active navigation with on-the-fly **Add stop** (`+ Stop`) waypoint insertion, **3D view** toggle (45° driving tilt + 3D building extrusions vs. 0° top-down view), and a quick **Gemini / Voice Assistant** launch button.
+- **60 FPS 2.5D Driving Avatar Picker (`DrivingAvatarPicker`, `VehicleAvatarOverlay`)**: Real-time 2.5D canvas-rendered vehicle avatars (**Classic Arrow**, **Blue Puma ST**, **White Sport**) with smooth heading interpolation and zero reflection overhead.
+
+### Full 9-Language Navigator Localization
+- **Complete UI & API Localization**: Extracted all hardcoded navigator strings into localized `strings.xml` resources across all **9 supported languages** (`en`, `it`, `de`, `es`, `fr`, `pl`, `pt`, `ru`, `uk`), and aligned Valhalla (`directions_options.language`), Photon (`lang`), and Nominatim (`accept-language`) queries with `AppLanguageManager` for end-to-end localized turn instructions and TTS voice guidance.
+
 ## [v0.1.2-Beta] - 2026-11-21
 
 ### Automotive Vector Map & 3D Driving Perspective

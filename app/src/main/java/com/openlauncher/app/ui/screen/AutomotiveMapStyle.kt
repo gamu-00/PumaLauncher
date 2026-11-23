@@ -18,46 +18,46 @@ import org.maplibre.android.style.layers.SymbolLayer
 import java.util.Locale
 
 /**
- * Tesla Navigation & Apple Maps inspired high-contrast automotive vector style for MapLibre.
+ * Google Maps inspired Day/Night automotive vector style for MapLibre.
  *
  * Features:
  * 1. Aggressive decluttering: hides pedestrian underpasses, footpaths/trails, minor/metro railways,
  *    parking lots, and suppresses service roads until zoom >= 16.
  *    Reduces road label density via wide symbol-spacing, text-padding, and crisp text-halo-width.
- * 2. Balanced automotive color hierarchy + compact road shields (A22, SS12, SS45bis):
- *    - Night theme: obsidian asphalt (#0E1117), deep abyss water (#0B1E36), subtle parks/woods (0.25 opacity),
- *      refined gold-amber motorways & trunks (#C9933B, -30% width), crisp primary/secondary roads (#9AA5B4
- *      with dark casing), discreet anthracite local roads (#3B4252).
- *    - Day theme (Cool Slate anti-glare): light stone slate (#E5E9F0), clean map blue water (#8AB4D8),
- *      soft muted sage parks (#D8E2DC at 0.50 opacity, no sharp borders), satin amber motorways (#E09F5A,
- *      -30% width with thin casing), pure white primary/secondary roads (#FFFFFF) with #B0BAC5 casing.
- * 3. Lightweight 3D buildings (`fill-extrusion` at zoom >= 15, opacity 0.45, gradual scaled height,
- *    tone-on-tone color) and Apple Maps style electric-cyan (#00D2FF) dual-tone route ribbon.
+ * 2. Google Maps Day/Night color hierarchy + compact blue road shields (#1A73E8):
+ *    - Night theme: slate-blue land background (#17263C), deep ocean blue water (#0B3B59),
+ *      subtle night parks (#152F2E), major/trunk/primary roads (#4E5D73 with #263345 casing),
+ *      secondary/local roads (#38414E with #1E2A3A casing), blue road shields (#1A73E8),
+ *      and bright cyan active route (#00E5FF) with blue casing (#0077B6) and #2B5B78 alternatives.
+ *    - Day theme: clean light land (#E5E9F0), map blue water (#8AB4D8), soft sage parks (#D8E2DC),
+ *      amber motorways (#E09F5A), pure white primary/secondary roads (#FFFFFF),
+ *      and Google Maps blue active route (#1A73E8) with #0D47A1 casing.
+ * 3. Lightweight 3D buildings (`fill-extrusion` at zoom >= 15, opacity 0.45, gradual scaled height).
  */
 object AutomotiveMapStyle {
 
     private const val TAG = "PumaNavStyle"
 
-    // Night Palette (Tesla / Apple Maps Dark)
-    const val NIGHT_BG_HEX = "#0E1117"
-    const val NIGHT_WATER_HEX = "#0B1E36"
-    const val NIGHT_PARK_HEX = "#111F1A"
-    const val NIGHT_MOTORWAY_HEX = "#C9933B"
-    const val NIGHT_MOTORWAY_CASING_HEX = "#2B1E08"
-    const val NIGHT_PRIMARY_HEX = "#9AA5B4"
-    const val NIGHT_PRIMARY_CASING_HEX = "#141A24"
-    const val NIGHT_SECONDARY_HEX = "#9AA5B4"
-    const val NIGHT_SECONDARY_CASING_HEX = "#141A24"
-    const val NIGHT_LOCAL_HEX = "#3B4252"
-    const val NIGHT_LOCAL_CASING_HEX = "#131720"
-    const val NIGHT_BUILDING_3D_HEX = "#19202B"
-    const val NIGHT_LABEL_PRIMARY_HEX = "#ECEFF4"
-    const val NIGHT_LABEL_SECONDARY_HEX = "#CBD5E1"
-    const val NIGHT_LABEL_SUBURB_HEX = "#94A3B8"
-    const val NIGHT_LABEL_MOTORWAY_HEX = "#E5C07B"
-    const val NIGHT_LABEL_HALO_HEX = "#080A0F"
+    // Night Palette (Google Maps Night)
+    const val NIGHT_BG_HEX = "#17263C"
+    const val NIGHT_WATER_HEX = "#0B3B59"
+    const val NIGHT_PARK_HEX = "#152F2E"
+    const val NIGHT_MOTORWAY_HEX = "#4E5D73"
+    const val NIGHT_MOTORWAY_CASING_HEX = "#263345"
+    const val NIGHT_PRIMARY_HEX = "#4E5D73"
+    const val NIGHT_PRIMARY_CASING_HEX = "#263345"
+    const val NIGHT_SECONDARY_HEX = "#38414E"
+    const val NIGHT_SECONDARY_CASING_HEX = "#1E2A3A"
+    const val NIGHT_LOCAL_HEX = "#38414E"
+    const val NIGHT_LOCAL_CASING_HEX = "#1B2838"
+    const val NIGHT_BUILDING_3D_HEX = "#22344E"
+    const val NIGHT_LABEL_PRIMARY_HEX = "#E8EAED"
+    const val NIGHT_LABEL_SECONDARY_HEX = "#9AA0A6"
+    const val NIGHT_LABEL_SUBURB_HEX = "#9AA0A6"
+    const val NIGHT_LABEL_MOTORWAY_HEX = "#E8EAED"
+    const val NIGHT_LABEL_HALO_HEX = "#17263C"
 
-    // Day Palette (Cool Slate Anti-Glare)
+    // Day Palette (Google Maps Day)
     const val DAY_BG_HEX = "#E5E9F0"
     const val DAY_WATER_HEX = "#8AB4D8"
     const val DAY_PARK_HEX = "#D8E2DC"
@@ -70,20 +70,23 @@ object AutomotiveMapStyle {
     const val DAY_LOCAL_HEX = "#EDF2F7"
     const val DAY_LOCAL_CASING_HEX = "#C2CBD6"
     const val DAY_BUILDING_3D_HEX = "#CFD7E3"
-    const val DAY_LABEL_PRIMARY_HEX = "#1E293B"
-    const val DAY_LABEL_SECONDARY_HEX = "#334155"
-    const val DAY_LABEL_SUBURB_HEX = "#64748B"
+    const val DAY_LABEL_PRIMARY_HEX = "#202124"
+    const val DAY_LABEL_SECONDARY_HEX = "#3C4043"
+    const val DAY_LABEL_SUBURB_HEX = "#5F6368"
     const val DAY_LABEL_MOTORWAY_HEX = "#7C2D12"
     const val DAY_LABEL_HALO_HEX = "#FFFFFF"
 
-    // Apple Maps Active Route Ribbon Palette
-    const val ROUTE_RIBBON_CORE_HEX = "#00D2FF"
-    const val ROUTE_RIBBON_CASING_NIGHT_HEX = "#033B52"
-    const val ROUTE_RIBBON_CASING_DAY_HEX = "#04435C"
-    const val ROUTE_ALT_CORE_NIGHT_HEX = "#7B96B0"
-    const val ROUTE_ALT_CORE_DAY_HEX = "#6B86A0"
-    const val ROUTE_ALT_CASING_NIGHT_HEX = "#1E293B"
-    const val ROUTE_ALT_CASING_DAY_HEX = "#475569"
+    // Google Maps Active Route Ribbon Palette (Night vs Day)
+    const val ROUTE_CORE_NIGHT_HEX = "#00E5FF"
+    const val ROUTE_CASING_NIGHT_HEX = "#0077B6"
+    const val ROUTE_ALT_CORE_NIGHT_HEX = "#2B5B78"
+    const val ROUTE_ALT_CASING_NIGHT_HEX = "#16354B"
+
+    const val ROUTE_CORE_DAY_HEX = "#1A73E8"
+    const val ROUTE_CASING_DAY_HEX = "#0D47A1"
+    const val ROUTE_ALT_CORE_DAY_HEX = "#A8C7FA"
+    const val ROUTE_ALT_CASING_DAY_HEX = "#5F84C6"
+
     const val ROUTE_TRAVELED_CORE_HEX = "#64748B"
     const val ROUTE_TRAVELED_CASING_HEX = "#334155"
 
@@ -93,7 +96,7 @@ object AutomotiveMapStyle {
 
     fun buildFallbackStyleJson(isLightTheme: Boolean): String {
         val bg = if (isLightTheme) DAY_BG_HEX else NIGHT_BG_HEX
-        val name = if (isLightTheme) "PumaCoolSlateFallback" else "PumaObsidianFallback"
+        val name = if (isLightTheme) "PumaGoogleDayFallback" else "PumaGoogleNightFallback"
         return """
         {
           "version": 8,
@@ -113,15 +116,15 @@ object AutomotiveMapStyle {
     }
 
     /**
-     * Registers compact high-contrast road shield badge images into the loaded [Style].
+     * Registers compact high-contrast Google Maps blue road shield badge images into the loaded [Style].
      */
     fun ensureRoadShieldImages(style: Style) {
         if (style.getImage(SHIELD_IMAGE_NIGHT) == null) {
             style.addImage(
                 SHIELD_IMAGE_NIGHT,
                 createShieldBitmap(
-                    fillHex = "#1B2432",
-                    strokeHex = "#64748B"
+                    fillHex = "#1A73E8",
+                    strokeHex = "#8AB4F8"
                 )
             )
         }
@@ -129,7 +132,7 @@ object AutomotiveMapStyle {
             style.addImage(
                 SHIELD_IMAGE_DAY,
                 createShieldBitmap(
-                    fillHex = "#1E293B",
+                    fillHex = "#1A73E8",
                     strokeHex = "#FFFFFF"
                 )
             )
@@ -163,11 +166,11 @@ object AutomotiveMapStyle {
      * Builds the complete MapLibre GL Style v8 JSON pointing to OpenFreeMap's Planet vector tiles.
      */
     fun buildAutomotiveStyleJson(isLightTheme: Boolean): String {
-        val styleName = if (isLightTheme) "PumaAutomotiveCoolSlate" else "PumaAutomotiveNight"
+        val styleName = if (isLightTheme) "PumaGoogleMapsDay" else "PumaGoogleMapsNight"
         val bgHex = if (isLightTheme) DAY_BG_HEX else NIGHT_BG_HEX
         val waterHex = if (isLightTheme) DAY_WATER_HEX else NIGHT_WATER_HEX
         val parkHex = if (isLightTheme) DAY_PARK_HEX else NIGHT_PARK_HEX
-        val parkOpacity = if (isLightTheme) 0.50 else 0.25
+        val parkOpacity = if (isLightTheme) 0.50 else 0.45
         val motorwayHex = if (isLightTheme) DAY_MOTORWAY_HEX else NIGHT_MOTORWAY_HEX
         val motorwayCasingHex = if (isLightTheme) DAY_MOTORWAY_CASING_HEX else NIGHT_MOTORWAY_CASING_HEX
         val primaryHex = if (isLightTheme) DAY_PRIMARY_HEX else NIGHT_PRIMARY_HEX
@@ -699,8 +702,8 @@ object AutomotiveMapStyle {
     }
 
     /**
-     * Enforces Tesla / Apple Maps decluttering, color hierarchy, 3D building extrusion,
-     * road shields, and crisp road typography on any loaded MapLibre [Style].
+     * Enforces Google Maps Day/Night decluttering, color hierarchy, 3D building extrusion,
+     * blue road shields, and crisp road typography on any loaded MapLibre [Style].
      */
     fun applyAutomotiveStyleToLoadedLayers(style: Style, isLightTheme: Boolean) {
         ensureRoadShieldImages(style)
@@ -708,7 +711,7 @@ object AutomotiveMapStyle {
         val bgHex = if (isLightTheme) DAY_BG_HEX else NIGHT_BG_HEX
         val waterHex = if (isLightTheme) DAY_WATER_HEX else NIGHT_WATER_HEX
         val parkHex = if (isLightTheme) DAY_PARK_HEX else NIGHT_PARK_HEX
-        val parkOpacity = if (isLightTheme) 0.50f else 0.25f
+        val parkOpacity = if (isLightTheme) 0.50f else 0.45f
         val motorwayHex = if (isLightTheme) DAY_MOTORWAY_HEX else NIGHT_MOTORWAY_HEX
         val motorwayCasingHex = if (isLightTheme) DAY_MOTORWAY_CASING_HEX else NIGHT_MOTORWAY_CASING_HEX
         val primaryHex = if (isLightTheme) DAY_PRIMARY_HEX else NIGHT_PRIMARY_HEX
@@ -902,7 +905,7 @@ object AutomotiveMapStyle {
 
         Log.d(
             TAG,
-            "Stile vettoriale automotive Tesla/Apple Maps applicato (${if (isLightTheme) "Giorno Cool Slate" else "Notte Obsidian"})"
+            "Stile vettoriale Google Maps applicato (${if (isLightTheme) "Giorno" else "Notte"})"
         )
     }
 

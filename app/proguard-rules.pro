@@ -8,6 +8,7 @@
 -keep @androidx.annotation.Keep class * { *; }
 -keepclassmembers class * { @androidx.annotation.Keep *; }
 -keep class com.openlauncher.app.ui.screen.PhotonPlace { *; }
+-keep class com.openlauncher.app.ui.screen.TurnIconType { *; }
 -keep class com.openlauncher.app.ui.screen.ValhallaManeuver { *; }
 -keep class com.openlauncher.app.ui.screen.ValhallaRoute { *; }
 -keep class com.openlauncher.app.ui.screen.RouteOptionType { *; }

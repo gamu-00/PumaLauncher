@@ -46,6 +46,11 @@ class SettingsRepository(private val context: Context) {
         val SHOW_HIDDEN_APPS          = booleanPreferencesKey("show_hidden_apps")
         val AVOID_TOLLS                 = booleanPreferencesKey("avoid_tolls")
         val VOICE_GUIDANCE_ENABLED      = booleanPreferencesKey("voice_guidance_enabled")
+        val NAV_3D_VIEW_ENABLED         = booleanPreferencesKey("nav_3d_view_enabled")
+        val DRIVING_AVATAR              = stringPreferencesKey("driving_avatar")
+        val HOME_ADDRESS_LABEL          = stringPreferencesKey("home_address_label")
+        val HOME_LAT                    = doublePreferencesKey("home_lat")
+        val HOME_LON                    = doublePreferencesKey("home_lon")
         val MEDIA_PAUSE_TIMEOUT_MINUTES = intPreferencesKey("media_pause_timeout_minutes")
     }
 
@@ -96,6 +101,11 @@ class SettingsRepository(private val context: Context) {
             showHiddenApps           = prefs[Keys.SHOW_HIDDEN_APPS] ?: defaults.showHiddenApps,
             avoidTolls                 = prefs[Keys.AVOID_TOLLS] ?: defaults.avoidTolls,
             voiceGuidanceEnabled       = prefs[Keys.VOICE_GUIDANCE_ENABLED] ?: defaults.voiceGuidanceEnabled,
+            nav3dViewEnabled           = prefs[Keys.NAV_3D_VIEW_ENABLED] ?: defaults.nav3dViewEnabled,
+            drivingAvatar              = prefs[Keys.DRIVING_AVATAR]?.let { runCatching { DrivingAvatar.valueOf(it) }.getOrNull() } ?: defaults.drivingAvatar,
+            homeAddressLabel           = prefs[Keys.HOME_ADDRESS_LABEL],
+            homeLat                    = prefs[Keys.HOME_LAT],
+            homeLon                    = prefs[Keys.HOME_LON],
             mediaPauseTimeoutMinutes   = (prefs[Keys.MEDIA_PAUSE_TIMEOUT_MINUTES] ?: defaults.mediaPauseTimeoutMinutes)
                 .coerceIn(MIN_MEDIA_PAUSE_TIMEOUT_MINUTES, MAX_MEDIA_PAUSE_TIMEOUT_MINUTES)
         )
@@ -158,8 +168,27 @@ class SettingsRepository(private val context: Context) {
         prefs[Keys.SHOW_HIDDEN_APPS]        = s.showHiddenApps
         prefs[Keys.AVOID_TOLLS]                  = s.avoidTolls
         prefs[Keys.VOICE_GUIDANCE_ENABLED]       = s.voiceGuidanceEnabled
+        prefs[Keys.NAV_3D_VIEW_ENABLED]          = s.nav3dViewEnabled
+        prefs[Keys.DRIVING_AVATAR]               = s.drivingAvatar.name
+        if (s.homeAddressLabel != null && s.homeLat != null && s.homeLon != null) {
+            prefs[Keys.HOME_ADDRESS_LABEL] = s.homeAddressLabel
+            prefs[Keys.HOME_LAT]           = s.homeLat
+            prefs[Keys.HOME_LON]           = s.homeLon
+        } else {
+            prefs.remove(Keys.HOME_ADDRESS_LABEL)
+            prefs.remove(Keys.HOME_LAT)
+            prefs.remove(Keys.HOME_LON)
+        }
         prefs[Keys.MEDIA_PAUSE_TIMEOUT_MINUTES]  = s.mediaPauseTimeoutMinutes
             .coerceIn(MIN_MEDIA_PAUSE_TIMEOUT_MINUTES, MAX_MEDIA_PAUSE_TIMEOUT_MINUTES)
+    }
+
+    suspend fun setHomeAddress(label: String, lat: Double, lon: Double) {
+        updateSettings { it.copy(homeAddressLabel = label, homeLat = lat, homeLon = lon) }
+    }
+
+    suspend fun clearHomeAddress() {
+        updateSettings { it.copy(homeAddressLabel = null, homeLat = null, homeLon = null) }
     }
 
     suspend fun resetToDefaults() {

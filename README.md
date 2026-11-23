@@ -9,7 +9,7 @@
 
 Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLauncher** reimagines the Android home screen for widescreen in-car infotainment systems (tested on 8" landscape head units and CarlinKit S2p AI Boxes, scaling across 6" to 16" displays). It combines split-screen pure-GNSS navigation, an ad-free hybrid YouTube player, contextual live weather, and a unified media station inside a distraction-reduced cockpit UI.
 
-> **Current Release:** `v0.1.3` — Signed release build introducing a Google Maps style automotive vector map style (Day/Night with road shields & 3D driving perspective), interactive 3-route preview on Valhalla (Fastest, Alternative, Scenic), full 9-language localization (adding Polish, Russian, and Ukrainian), and a compact automotive language dropdown selector.
+> **Current Release:** `v0.1.3` — Signed release build introducing a 23-module Google Maps-style navigator architecture (Day/Night slate-blue nocturnal map & cyan route styling), expanded turn-by-turn banners with road shields, persistent Home/Work/Recent search overlay, real-time GPS speedometer with Valhalla speed limit signs, swipe-up trip drawer with 3D view toggle and 60 fps 2.5D driving avatars, and full 9-language localization across UI and routing APIs.
 
 ---
 
@@ -26,10 +26,9 @@ Forked from [OpenLauncher](https://github.com/dw2lam/openlauncher), **PumaLaunch
   - Full localization across **9 languages** via a compact automotive dropdown selector: English, Italian, German, French, Spanish, Portuguese, Polish (`Polski`), Russian (`Русский`), and Ukrainian (`Українська`), with automatic audio/stream language prioritization across Media Station and YouTube.
 - **Integrated Split-Screen Navigation (MapLibre + Pure GNSS)**
   - Persistent interactive map rendered side-by-side with the media card—no app switching required—with active turn-by-turn routing persisting seamlessly across Home, App Library, and Settings.
-  - **Automotive Vector Map Style (`AutomotiveMapStyle`):** High-contrast Day (*Cool Slate*) and Night (*Obsidian*) vector styling with aggressive POI/footpath decluttering, compact highway/road shields, subtle 3D buildings, and dynamic 45° 3D driving tilt with speed-adaptive zoom.
-  - **3-Route Preview & Valhalla Routing:** Interactive route preview comparing up to 3 Valhalla alternatives (**Fastest**, **Alternative**, and **Scenic** hill/curvy profile) with toll indicators, tap-on-map selection, and split-screen adaptive layout before starting turn-by-turn guidance.
-  - **Pure GNSS Engine (`FilteredGpsLocationEngine`):** Dedicated `GPS_PROVIDER` pipeline with physical outlier rejection, 2D constant-velocity Kalman smoothing, standstill anti-jitter, and soft snap-to-route projection.
-  - **Cockpit Map Controls:** Native vector directional arrow (`RenderMode.GPS`), free-look camera panning with Compass reset and smooth Recenter, plus a faded traveled-route trail.
+  - **Modular Google Maps-Style HUD:** 23-module split-screen navigator with Day/Night themes (slate-blue nocturnal map with bright cyan route polylines), enlarged turn-by-turn banners with road shields (`SS`, `SP`, `A`, `B`), and **Fastest / Alternative / Scenic** 3-route preview.
+  - **Search, Speed Limits & 2.5D Avatars:** Persistent **Home** / **Work** shortcuts and **Recent** (last 10) search overlay, unified live GPS speedometer + Valhalla speed limit sign (`edge.speed_limit` with `/trace_attributes` fallback), swipe-up trip drawer with on-the-fly **Add stop**, **3D view** toggle, **Gemini / Voice Assistant** shortcut, and 60 fps 2.5D driving avatars (*Classic Arrow*, *Blue Puma ST*, *White Sport*).
+  - **Pure GNSS Engine (`FilteredGpsLocationEngine`) & 9-Language APIs:** Dedicated `GPS_PROVIDER` pipeline with physical outlier rejection, 2D constant-velocity Kalman smoothing, standstill anti-jitter, soft snap-to-route projection, and `AppLanguageManager`-synced Valhalla, Photon, and Nominatim localization.
 - **Hybrid Ad-Free YouTube Player (Up to 720p)**
   - Browse subscriptions, search, and keep your Google account signed in through an isolated `WebView` with persistent cookies and OAuth/2FA popup support.
   - Selecting any video or Short intercepts SPA navigation and hands the stream over to **NewPipeExtractor** + **Media3 ExoPlayer**, eliminating web-injected ads and background visibility pauses.
@@ -116,7 +115,7 @@ app/src/main/java/com/openlauncher/app/
 ## Installation & Building from Source
 
 ### Installing the Release APK
-1. Download `PumaLauncher-v0.1.2-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
+1. Download `PumaLauncher-v0.1.3-release.apk` from the [Releases](https://github.com/gamu-00/PumaLauncher/releases) page.
 2. Install it on your Android head unit or AI Box (Android 13 / API 33 recommended) and grant **Location** and **Notification Access** when prompted to enable pure-GNSS navigation and the *Now Playing* media widget.
 
 ### Compiling from Source
@@ -140,10 +139,10 @@ app/src/main/java/com/openlauncher/app/
 
 ---
 
-## Known Limitations & Roadmap (`v0.1.2`)
+## Known Limitations & Roadmap (`v0.1.3`)
 
 - **Upstream YouTube Client Changes:** Because stream extraction depends on `NewPipeExtractor`, periodic server-side changes by YouTube will require updating the `NewPipeExtractor` version in `app/build.gradle.kts`.
-- **Navigation HUD Evolution:** `v0.1.2` introduces high-contrast Day/Night automotive vector map styling, 3-route preview (Fastest, Alternative, Scenic), pure GNSS Kalman filtering, and 9-language voice guidance; offline map packages and waypoint support are planned for `v0.2`.
+- **Navigation HUD Evolution:** `v0.1.3` delivers the 23-module Google Maps-style navigator, persistent Home/Work/Recent search, waypoint stops, real-time speed limits, swipe-up 3D/avatar controls, and full 9-language UI + API localization; offline map packages are planned for `v0.2`.
 - **Hardware Target:** Layout proportions and scaling presets (`65%`–`160%`) are tuned for landscape head units and automotive displays (6" to 16"); portrait phone screens are not the primary target.
 
 ---

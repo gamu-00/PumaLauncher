@@ -20,8 +20,8 @@ android {
         applicationId  = "com.pumalauncher.app"
         minSdk         = 29
         targetSdk      = 33
-        versionCode    = 3
-        versionName    = "0.1.2"
+        versionCode    = 4
+        versionName    = "0.1.3"
     }
 
     base {
